@@ -1578,6 +1578,560 @@
   transform: translateY(1px);
 }
 
+:root,
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --page-bg: #080909;
+  --panel-bg: rgba(16, 17, 18, 0.86);
+  --panel-bg-strong: rgba(10, 10, 11, 0.92);
+  --panel-border: rgba(191, 141, 82, 0.26);
+  --panel-border-strong: rgba(219, 168, 96, 0.42);
+  --metric-bg: rgba(255, 255, 255, 0.065);
+  --metric-border: rgba(255, 255, 255, 0.1);
+  --text-strong: #fff7ed;
+  --text-main: #e7e0d8;
+  --text-muted: #a8a29b;
+  --accent: #c88b4a;
+  --accent-strong: #f0bf7a;
+  --accent-soft: rgba(200, 139, 74, 0.16);
+  --accent-glow: rgba(200, 139, 74, 0.28);
+  --cool-accent: #5eead4;
+  --success: #5eead4;
+  --danger: #fb7185;
+  --shadow-soft: 0 22px 72px rgba(0, 0, 0, 0.42);
+  --shadow-hover: 0 28px 86px rgba(0, 0, 0, 0.52);
+  --focus-ring: 0 0 0 4px rgba(200, 139, 74, 0.18);
+}
+
+:root[data-theme='light'],
+[data-theme='light'] {
+  --page-bg: #f6f1ea;
+  --panel-bg: rgba(255, 252, 247, 0.9);
+  --panel-bg-strong: rgba(255, 255, 255, 0.94);
+  --panel-border: rgba(128, 83, 41, 0.2);
+  --panel-border-strong: rgba(161, 98, 7, 0.34);
+  --metric-bg: rgba(255, 255, 255, 0.78);
+  --metric-border: rgba(120, 113, 108, 0.22);
+  --text-strong: #1c1917;
+  --text-main: #292524;
+  --text-muted: #6b625b;
+  --accent: #9a5b23;
+  --accent-strong: #b86d2f;
+  --accent-soft: rgba(154, 91, 35, 0.12);
+  --accent-glow: rgba(154, 91, 35, 0.18);
+  --cool-accent: #0f766e;
+  --success: #047857;
+  --danger: #be123c;
+  --shadow-soft: 0 22px 70px rgba(41, 37, 36, 0.18);
+  --shadow-hover: 0 28px 82px rgba(41, 37, 36, 0.24);
+  --focus-ring: 0 0 0 4px rgba(154, 91, 35, 0.14);
+}
+
+body {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 34%),
+    linear-gradient(180deg, var(--page-bg), color-mix(in srgb, var(--page-bg) 76%, #000 24%));
+  transition: background-color 240ms ease, color 240ms ease;
+}
+
+.map-workspace,
+.login-shell,
+.employee-dashboard,
+.admin-leads-page {
+  color: var(--text-main);
+  transition: background 260ms ease, color 220ms ease;
+}
+
+.map-workspace::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(5, 5, 5, 0.42), transparent 28%, transparent 72%, rgba(5, 5, 5, 0.36)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08), transparent 38%, rgba(0, 0, 0, 0.18));
+  opacity: 0.86;
+  transition: opacity 260ms ease, background 260ms ease;
+}
+
+[data-theme='light'].map-workspace::before {
+  background:
+    linear-gradient(90deg, rgba(246, 241, 234, 0.38), transparent 30%, transparent 72%, rgba(246, 241, 234, 0.32)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 42%, rgba(255, 255, 255, 0.16));
+  opacity: 0.72;
+}
+
+.map-workspace > .relative {
+  z-index: 0;
+}
+
+.stratton-card,
+.control-card,
+.login-panel,
+.admin-crm-card,
+.admin-assignment-card,
+.employee-user-card,
+.employee-ticket-list,
+.employee-details,
+.admin-leads-actions,
+.admin-leads-tabs {
+  border-color: var(--panel-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg-strong) 92%, var(--accent-soft)), var(--panel-bg));
+  color: var(--text-main);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.16);
+  transition:
+    background 240ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease,
+    transform 180ms ease;
+}
+
+.stratton-card:hover,
+.control-card:hover,
+.admin-crm-card:hover,
+.admin-assignment-card:hover {
+  border-color: var(--panel-border-strong);
+  box-shadow: var(--shadow-hover);
+}
+
+.workspace-panel {
+  z-index: 5;
+  animation: panelFloatIn 420ms ease both;
+  scrollbar-color: var(--accent) color-mix(in srgb, var(--panel-bg) 72%, transparent);
+}
+
+.workspace-panel-right {
+  animation-delay: 60ms;
+}
+
+.workspace-panel::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--panel-bg) 72%, transparent);
+}
+
+.workspace-panel::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+}
+
+.summary-stat,
+.stratton-metric,
+.admin-crm-stat,
+.admin-crm-lead-row,
+.admin-crm-detail-stat,
+.admin-assignment-count,
+.admin-assignment-item,
+.employee-stat,
+.employee-ticket-card {
+  border: 1px solid var(--metric-border);
+  background: var(--metric-bg);
+  color: var(--text-main);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.08);
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease,
+    color 220ms ease;
+}
+
+.summary-stat:hover,
+.stratton-metric:hover,
+.employee-ticket-card:hover,
+.admin-crm-lead-row:hover,
+.admin-assignment-item:hover {
+  border-color: var(--panel-border-strong);
+  box-shadow: 0 14px 34px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.summary-stat p:first-child,
+.stratton-metric p:first-child,
+.section-eyebrow,
+.admin-assignment-eyebrow,
+.employee-eyebrow {
+  color: var(--accent-strong);
+  letter-spacing: 0;
+}
+
+.summary-stat p:nth-child(2),
+.stratton-card h1,
+.stratton-card h2,
+.stratton-card h3,
+.stratton-metric div,
+.selected-area-card h2,
+.control-card h3,
+.employee-topbar h1,
+.employee-details h2,
+.employee-section-heading h2,
+.admin-leads-topbar h1,
+.admin-crm-header h2,
+.admin-assignment-header h2,
+.employee-stat strong,
+.admin-crm-stat strong,
+.admin-crm-lead-row strong,
+.admin-crm-detail-stat strong,
+.admin-assignment-count strong,
+.admin-assignment-item-main h3 {
+  color: var(--text-strong);
+}
+
+.summary-stat p:last-child,
+.muted-copy,
+.admin-leads-topbar p:not(.employee-eyebrow),
+.admin-crm-header p:not(.admin-assignment-eyebrow),
+.admin-assignment-header p:not(.admin-assignment-eyebrow),
+.admin-crm-stat p,
+.admin-crm-stat span,
+.admin-crm-lead-row p,
+.admin-crm-lead-row span,
+.admin-crm-detail-stat p,
+.admin-crm-detail-footer span,
+.admin-assignment-controls label span,
+.admin-assignment-item-main p,
+.employee-stat p,
+.employee-stat span,
+.employee-ticket-meta,
+.employee-user-card span,
+.admin-leads-actions span {
+  color: var(--text-muted);
+}
+
+.surface-pill,
+.role-pill,
+.status-chip-row span,
+.user-strip,
+.control-surface,
+.admin-crm-expand-indicator,
+.employee-ticket-meta span {
+  border: 1px solid var(--metric-border);
+  background: var(--accent-soft);
+  color: var(--text-main);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--metric-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.25rem 0.7rem 0.25rem 1.9rem;
+  transition:
+    background 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    transform 180ms ease,
+    box-shadow 200ms ease;
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  left: 0.45rem;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+.theme-toggle:hover,
+.ghost-action:hover {
+  border-color: var(--panel-border-strong);
+  box-shadow: 0 10px 28px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.theme-toggle-compact {
+  min-height: 1.9rem;
+  padding-right: 0.65rem;
+}
+
+.ghost-action {
+  border: 1px solid var(--metric-border);
+  background: var(--metric-bg);
+  color: var(--text-main);
+}
+
+.app-brand img {
+  border-color: var(--panel-border-strong);
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.34),
+    0 0 0 3px var(--accent-soft);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.app-brand:hover img {
+  border-color: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.42),
+    0 0 0 4px var(--accent-soft);
+}
+
+.app-brand p,
+.admin-leads-actions strong,
+.employee-user-card strong {
+  color: var(--text-strong);
+}
+
+.app-brand span,
+.app-brand-map span,
+.app-brand-header span {
+  color: var(--accent-strong);
+}
+
+.login-panel-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.login-shell,
+.employee-dashboard,
+.admin-leads-page {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), rgba(0, 0, 0, 0.18)),
+    linear-gradient(180deg, color-mix(in srgb, var(--page-bg) 94%, #000), var(--page-bg)),
+    url('./assets/hero.png') center / cover fixed;
+}
+
+.login-title,
+.login-copy,
+.login-note,
+.login-form label span {
+  color: var(--text-main);
+}
+
+.login-title {
+  color: var(--text-strong);
+}
+
+.login-form input,
+.admin-mail-sender input,
+.admin-crm-toolbar select,
+.admin-crm-campaign input,
+.admin-crm-campaign textarea,
+.admin-crm-suppression input,
+.employee-update-form input,
+.employee-update-form select,
+.employee-update-form textarea,
+.admin-assignment-controls select,
+.workspace-panel input[type='text'] {
+  border-color: var(--metric-border);
+  background: color-mix(in srgb, var(--panel-bg-strong) 92%, #fff 8%);
+  color: var(--text-strong);
+  transition:
+    background 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    color 200ms ease;
+}
+
+.login-form input:focus,
+.admin-mail-sender input:focus,
+.admin-crm-toolbar select:focus,
+.admin-crm-campaign input:focus,
+.admin-crm-campaign textarea:focus,
+.admin-crm-suppression input:focus,
+.employee-update-form input:focus,
+.employee-update-form select:focus,
+.employee-update-form textarea:focus,
+.admin-assignment-controls select:focus,
+.workspace-panel input[type='text']:focus {
+  border-color: var(--accent-strong);
+  box-shadow: var(--focus-ring);
+}
+
+.login-submit,
+.employee-update-form button,
+.admin-crm-header button,
+.admin-crm-toolbar button,
+.admin-crm-actions button,
+.admin-crm-suppression button,
+.admin-assignment-header button,
+.admin-assignment-item button,
+.admin-leads-actions button,
+.admin-leads-tabs .admin-leads-tab-active {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  color: #1c130a;
+}
+
+.login-submit:hover,
+.employee-update-form button:hover,
+.admin-crm-header button:hover,
+.admin-crm-toolbar button:hover,
+.admin-crm-actions button:hover,
+.admin-crm-suppression button:hover,
+.admin-assignment-header button:hover,
+.admin-assignment-item button:hover,
+.admin-leads-actions button:hover {
+  background: linear-gradient(135deg, #ffd39a, var(--accent));
+  box-shadow: 0 12px 32px var(--accent-glow);
+}
+
+.admin-leads-tabs button {
+  color: var(--text-main);
+}
+
+.admin-leads-tabs button:hover {
+  background: var(--accent-soft);
+  color: var(--text-strong);
+}
+
+.admin-crm-lead-main:hover,
+.admin-assignment-item .admin-assignment-secondary:hover,
+.employee-ticket-card-active {
+  background: var(--accent-soft);
+}
+
+.admin-crm-lead-row-expanded,
+.employee-ticket-card-active {
+  border-color: var(--panel-border-strong);
+  box-shadow: 0 16px 42px var(--accent-glow);
+}
+
+.stratton-card [class*='bg-white'],
+.stratton-card [class*='bg-slate-50'],
+.stratton-card [class*='bg-slate-100'] {
+  background-color: var(--metric-bg);
+}
+
+.stratton-card [class*='border-slate'] {
+  border-color: var(--metric-border);
+}
+
+.stratton-card [class*='text-slate-950'],
+.stratton-card strong {
+  color: var(--text-strong);
+}
+
+.stratton-card [class*='text-slate-700'],
+.stratton-card [class*='text-slate-600'] {
+  color: var(--text-main);
+}
+
+.stratton-card [class*='text-slate-500'],
+.stratton-card [class*='text-slate-400'] {
+  color: var(--text-muted);
+}
+
+.stratton-card button.w-full {
+  border-color: var(--metric-border);
+  background: var(--metric-bg);
+  color: var(--text-main);
+}
+
+.stratton-card button.w-full:hover {
+  border-color: var(--panel-border-strong);
+  background: var(--accent-soft);
+  box-shadow: 0 12px 30px var(--accent-glow);
+}
+
+.solar-panel-overlay {
+  transition: opacity 220ms ease, filter 220ms ease, box-shadow 220ms ease;
+  animation: panelMaterialize 280ms ease both;
+}
+
+.thermal-potential-spot {
+  animation: heatBreathe 1800ms ease-in-out infinite;
+}
+
+.thermal-view-badge,
+.thermal-view-legend {
+  animation: fadeUp 280ms ease both;
+}
+
+.workspace-panel button,
+.admin-leads-actions button,
+.employee-user-card button,
+.employee-section-heading button,
+.employee-update-form button,
+.login-submit {
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.workspace-panel button:hover,
+.employee-user-card button:hover,
+.employee-section-heading button:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes panelFloatIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes panelMaterialize {
+  from {
+    opacity: 0;
+    filter: saturate(0.72);
+  }
+  to {
+    filter: saturate(1);
+  }
+}
+
+@keyframes heatBreathe {
+  0%,
+  100% {
+    filter: blur(9px) saturate(1.2);
+  }
+  50% {
+    filter: blur(11px) saturate(1.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 @media (max-width: 1180px) {
   .map-workspace {
     height: auto;

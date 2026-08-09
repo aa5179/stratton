@@ -41,12 +41,26 @@ const MAX_VISIBLE_PANEL_OVERLAYS = 420
 
 function SummaryStat({ label, value, hint }) {
   return (
-    <div className="min-w-0 rounded-lg border border-white/10 bg-slate-950/72 p-3">
-      <p className="text-[0.72rem] font-semibold uppercase text-slate-400">{label}</p>
-      <p className="mt-1 break-words text-xl font-semibold leading-tight text-white">{value}</p>
-      {hint ? <p className="mt-1 text-[0.78rem] leading-5 text-slate-400">{hint}</p> : null}
+    <div className="summary-stat min-w-0 rounded-lg p-3">
+      <p className="text-[0.72rem] font-semibold uppercase">{label}</p>
+      <p className="mt-1 break-words text-xl font-semibold leading-tight">{value}</p>
+      {hint ? <p className="mt-1 text-[0.78rem] leading-5">{hint}</p> : null}
     </div>
   )
+}
+
+function getInitialTheme() {
+  if (typeof window === 'undefined') {
+    return 'dark'
+  }
+
+  const savedTheme = window.localStorage.getItem('stratton-theme')
+
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme
+  }
+
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
 function App() {
@@ -79,6 +93,7 @@ function App() {
   })
   const [autoSendHotEmails, setAutoSendHotEmails] = useState(false)
   const [autoSendHotEmailTestMode, setAutoSendHotEmailTestMode] = useState(false)
+  const [theme, setTheme] = useState(getInitialTheme)
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'solar-dashboard-map',
@@ -87,6 +102,14 @@ function App() {
   })
 
   const stateRate = getElectricityRateForState(selectedLocation?.state)
+  const toggleTheme = useCallback(() => {
+    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('stratton-theme', theme)
+  }, [theme])
 
   const login = useCallback(async ({ email, password }) => {
     const profile = await signInWithEmail({ email, password })
@@ -466,7 +489,7 @@ function App() {
 
   if (authLoading) {
     return (
-      <main className="login-shell">
+      <main className="login-shell" data-theme={theme}>
         <section className="login-panel">
           <div className="app-brand app-brand-login">
             <img src="/LOGO.jpeg" alt="Stratton logo" />
@@ -483,11 +506,25 @@ function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen onLogin={login} authError={authError} />
+    return (
+      <LoginScreen
+        onLogin={login}
+        authError={authError}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    )
   }
 
   if (currentUser.role === 'ground_employee') {
-    return <EmployeeDashboard currentUser={currentUser} onSignOut={signOut} />
+    return (
+      <EmployeeDashboard
+        currentUser={currentUser}
+        onSignOut={signOut}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    )
   }
 
   if (adminPage === 'leads') {
@@ -496,12 +533,14 @@ function App() {
         currentUser={currentUser}
         onBackToMap={() => setAdminPage('map')}
         onSignOut={signOut}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     )
   }
 
   return (
-    <div className="map-workspace">
+    <div className="map-workspace" data-theme={theme}>
       <MapView
         isLoaded={isLoaded}
         loadError={loadError}
@@ -542,11 +581,13 @@ function App() {
           currentUser={currentUser}
           onSignOut={signOut}
           onOpenLeadsPage={() => setAdminPage('leads')}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
 
-        <div className="rounded-lg border border-white/15 bg-slate-950/82 p-4 shadow-[0_22px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
-          <p className="text-xs font-semibold uppercase text-cyan-200/85">Selected area</p>
-          <h2 className="mt-2 text-lg font-semibold text-white">{selectedAddress}</h2>
+        <div className="stratton-card selected-area-card rounded-lg p-4">
+          <p className="section-eyebrow text-xs font-semibold uppercase">Selected area</p>
+          <h2 className="mt-2 text-lg font-semibold">{selectedAddress}</h2>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <SummaryStat
               label="Panels in radius"
@@ -578,12 +619,12 @@ function App() {
         <div className="control-card">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase text-cyan-200/85">Panel count</p>
-              <h3 className="mt-1 text-base font-semibold text-white">
+              <p className="section-eyebrow text-xs font-semibold uppercase">Panel count</p>
+              <h3 className="mt-1 text-base font-semibold">
                 {selectedPanelCount.toLocaleString('en-US')} selected
               </h3>
             </div>
-            <div className="rounded-md border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-semibold text-slate-200">
+            <div className="surface-pill rounded-md px-2.5 py-1 text-xs font-semibold">
               {maxPanelCount.toLocaleString('en-US')} max
             </div>
           </div>

@@ -2,12 +2,12 @@ import { useState } from 'react'
 import AdminCrmPanel from './AdminCrmPanel.jsx'
 import AdminFieldAssignments from './AdminFieldAssignments.jsx'
 
-function AdminLeadsPage({ currentUser, onBackToMap, onSignOut }) {
+function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTheme }) {
   const [activeTab, setActiveTab] = useState('leads')
   const [senderEmail, setSenderEmail] = useState(currentUser.email || '')
 
   return (
-    <main className="admin-leads-page">
+    <main className="admin-leads-page" data-theme={theme}>
       <header className="admin-leads-topbar">
         <div>
           <div className="app-brand app-brand-header">
@@ -26,6 +26,7 @@ function AdminLeadsPage({ currentUser, onBackToMap, onSignOut }) {
             <span>{currentUser.email}</span>
           </div>
           <button type="button" onClick={onBackToMap}>Map</button>
+          <button type="button" onClick={onToggleTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
           <button type="button" onClick={onSignOut}>Logout</button>
         </div>
       </header>

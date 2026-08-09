@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabaseClient.js'
 
-function LoginScreen({ onLogin, authError }) {
+function LoginScreen({ onLogin, authError, theme, onToggleTheme }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -41,14 +41,19 @@ function LoginScreen({ onLogin, authError }) {
   }
 
   return (
-    <main className="login-shell">
+    <main className="login-shell" data-theme={theme}>
       <section className="login-panel">
-        <div className="app-brand app-brand-login">
-          <img src="/LOGO.jpeg" alt="Stratton logo" />
-          <div>
-            <p className="login-eyebrow">STRATTON</p>
-            <span>Solar CRM</span>
+        <div className="login-panel-top">
+          <div className="app-brand app-brand-login">
+            <img src="/LOGO.jpeg" alt="Stratton logo" />
+            <div>
+              <p className="login-eyebrow">STRATTON</p>
+              <span>Solar CRM</span>
+            </div>
           </div>
+          <button type="button" className="theme-toggle theme-toggle-compact" onClick={onToggleTheme}>
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
         </div>
 
         <div>

@@ -197,7 +197,7 @@ function TicketDetails({ ticket, onUpdated }) {
   )
 }
 
-function EmployeeDashboard({ currentUser, onSignOut }) {
+function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([])
   const [activeTicketId, setActiveTicketId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -277,7 +277,7 @@ function EmployeeDashboard({ currentUser, onSignOut }) {
   }, [tickets])
 
   return (
-    <main className="employee-dashboard">
+    <main className="employee-dashboard" data-theme={theme}>
       <header className="employee-topbar">
         <div>
           <div className="app-brand app-brand-header">
@@ -294,6 +294,7 @@ function EmployeeDashboard({ currentUser, onSignOut }) {
             <strong>{currentUser.name}</strong>
             <span>{currentUser.email}</span>
           </div>
+          <button type="button" onClick={onToggleTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
           <button type="button" onClick={onSignOut}>Logout</button>
         </div>
       </header>

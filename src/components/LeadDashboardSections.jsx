@@ -7,10 +7,10 @@ import {
 import { useState } from 'react'
 
 const cardShell =
-  'rounded-lg border border-slate-200/80 bg-white/95 p-4 shadow-[0_18px_58px_rgba(8,15,30,0.18)] backdrop-blur-xl'
+  'stratton-card rounded-lg p-4'
 
 const metricShell =
-  'min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3.5 shadow-sm'
+  'stratton-metric min-w-0 rounded-lg p-3.5'
 
 function SectionHeading({ eyebrow, title, description }) {
   return (

@@ -21,6 +21,8 @@ function TopBar({
   currentUser,
   onSignOut,
   onOpenLeadsPage,
+  theme,
+  onToggleTheme,
 }) {
   const [autocomplete, setAutocomplete] = useState(null)
 
@@ -52,7 +54,7 @@ function TopBar({
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-white/15 bg-slate-950/82 p-4 shadow-[0_22px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+    <div className="topbar-card stratton-card space-y-4 rounded-lg p-4">
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="app-brand app-brand-map">
@@ -62,26 +64,31 @@ function TopBar({
               <span>Building solar scanner</span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="rounded-md border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-white/14"
-          >
-            Logout
-          </button>
+          <div className="topbar-actions">
+            <button type="button" className="theme-toggle theme-toggle-compact" onClick={onToggleTheme}>
+              <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="ghost-action rounded-md px-2.5 py-1 text-xs font-semibold transition"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-        <h1 className="mt-2 text-lg font-semibold leading-tight text-white">
+        <h1 className="mt-2 text-lg font-semibold leading-tight">
           Select one rooftop
         </h1>
-        <p className="mt-1 text-sm leading-6 text-slate-300">
+        <p className="muted-copy mt-1 text-sm leading-6">
           Search or click a building. Panel layout, power, and savings use Google Solar data.
         </p>
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/8 px-3 py-2">
+        <div className="user-strip mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{currentUser?.name}</p>
-            <p className="truncate text-xs text-slate-400">{currentUser?.email}</p>
+            <p className="truncate text-sm font-semibold">{currentUser?.name}</p>
+            <p className="truncate text-xs">{currentUser?.email}</p>
           </div>
-          <span className="shrink-0 rounded-md bg-cyan-300/12 px-2 py-1 text-xs font-semibold uppercase text-cyan-100">
+          <span className="role-pill shrink-0 rounded-md px-2 py-1 text-xs font-semibold uppercase">
             {currentUser?.role === 'admin' ? 'Admin' : 'Field'}
           </span>
         </div>
@@ -112,12 +119,12 @@ function TopBar({
           )}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/8 p-3">
+        <div className="control-surface rounded-lg p-3">
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor="radius-control" className="text-xs font-semibold uppercase text-slate-300">
+            <label htmlFor="radius-control" className="text-xs font-semibold uppercase">
               Building radius
             </label>
-            <span className="rounded-md bg-cyan-300/12 px-2 py-1 text-sm font-semibold text-cyan-100">{radiusMeters} m</span>
+            <span className="role-pill rounded-md px-2 py-1 text-sm font-semibold">{radiusMeters} m</span>
           </div>
           <input
             id="radius-control"
@@ -129,7 +136,7 @@ function TopBar({
             onChange={(event) => onRadiusChange(Number(event.target.value))}
             className="mt-3 w-full accent-cyan-400"
           />
-          <div className="mt-2 flex justify-between text-[0.7rem] text-slate-400">
+          <div className="muted-copy mt-2 flex justify-between text-[0.7rem]">
             <span>10 m</span>
             <span>120 m</span>
           </div>
@@ -198,14 +205,14 @@ function TopBar({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-        <span className="rounded-md border border-white/10 bg-white/5 px-3 py-1">
+      <div className="status-chip-row flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-md px-3 py-1">
           State rate: ${currentStateRate.toFixed(2)}/kWh
         </span>
-        <span className="rounded-md border border-white/10 bg-white/5 px-3 py-1">
+        <span className="rounded-md px-3 py-1">
           Satellite map
         </span>
-        <span className="rounded-md border border-white/10 bg-white/5 px-3 py-1">
+        <span className="rounded-md px-3 py-1">
           {selectedLocation ? 'Boundary active' : 'Click map to start'}
         </span>
       </div>
