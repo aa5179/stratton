@@ -21,6 +21,19 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true })
 })
 
+app.get('/api/route-check', (_request, response) => {
+  response.json({
+    ok: true,
+    routes: [
+      'GET /api/health',
+      'POST /api/calls/test',
+      'POST /api/calls/send-leads',
+      'POST /api/calls/verify-consent',
+      'GET /api/calls/answer/:scriptId',
+    ],
+  })
+})
+
 app.use('/api/calls', callWebhooksRouter)
 app.use('/api', requireUser, requireAdmin, rateLimit({ name: 'enrichment', max: 80 }), enrichmentRouter)
 app.use('/api', requireUser, requireAdmin, rateLimit({ name: 'mail', max: 25 }), mailRouter)

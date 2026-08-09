@@ -359,29 +359,34 @@ async function sendCall({ to, script, allowTrialTemplateFallback = false }) {
   })
 }
 
+export async function sendTestCallPayload() {
+  const normalizedPhone = normalizePhone(getTestCallPhone())
+
+  if (!normalizedPhone) {
+    const error = new Error('The configured test phone number is invalid.')
+    error.status = 400
+    throw error
+  }
+
+  const delivery = await sendWithTwilio({
+    to: normalizedPhone,
+    twiml: buildTwiML(buildTestCallScript()),
+    allowTrialTemplateFallback: true,
+  })
+
+  return {
+    to: normalizedPhone,
+    providerConfigured: delivery.configured,
+    status: delivery.status,
+    provider: delivery.provider,
+    providerCallId: delivery.providerCallId,
+    errorMessage: delivery.errorMessage,
+  }
+}
+
 router.post('/calls/test', async (_request, response, next) => {
   try {
-    const normalizedPhone = normalizePhone(getTestCallPhone())
-
-    if (!normalizedPhone) {
-      response.status(400).json({ error: 'The configured test phone number is invalid.' })
-      return
-    }
-
-    const delivery = await sendWithTwilio({
-      to: normalizedPhone,
-      twiml: buildTwiML(buildTestCallScript()),
-      allowTrialTemplateFallback: true,
-    })
-
-    response.json({
-      to: normalizedPhone,
-      providerConfigured: delivery.configured,
-      status: delivery.status,
-      provider: delivery.provider,
-      providerCallId: delivery.providerCallId,
-      errorMessage: delivery.errorMessage,
-    })
+    response.json(await sendTestCallPayload())
   } catch (error) {
     next(error)
   }
