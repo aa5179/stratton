@@ -489,7 +489,7 @@ function App() {
 
   if (authLoading) {
     return (
-      <main className="login-shell" data-theme={theme}>
+      <main className="login-shell page-transition page-transition-login" data-theme={theme}>
         <section className="login-panel">
           <div className="app-brand app-brand-login">
             <img src="/LOGO.jpeg" alt="Stratton logo" />
@@ -540,7 +540,7 @@ function App() {
   }
 
   return (
-    <div className="map-workspace" data-theme={theme}>
+    <div className="map-workspace page-transition page-transition-map" data-theme={theme}>
       <MapView
         isLoaded={isLoaded}
         loadError={loadError}

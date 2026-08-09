@@ -7,7 +7,7 @@ function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTh
   const [senderEmail, setSenderEmail] = useState(currentUser.email || '')
 
   return (
-    <main className="admin-leads-page" data-theme={theme}>
+    <main className="admin-leads-page page-transition page-transition-dashboard" data-theme={theme}>
       <header className="admin-leads-topbar">
         <div>
           <div className="app-brand app-brand-header">
@@ -25,8 +25,16 @@ function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTh
             <strong>{currentUser.name}</strong>
             <span>{currentUser.email}</span>
           </div>
+          <button
+            type="button"
+            className="theme-toggle theme-toggle-compact"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
           <button type="button" onClick={onBackToMap}>Map</button>
-          <button type="button" onClick={onToggleTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
           <button type="button" onClick={onSignOut}>Logout</button>
         </div>
       </header>
@@ -66,33 +74,35 @@ function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTh
           </button>
         </div>
 
-        {activeTab === 'leads' ? (
-          <AdminCrmPanel
-            currentUser={currentUser}
-            senderEmail={senderEmail}
-            listLimit={100}
-            minScore={65}
-            title="High Score Leads"
-            description="Automatically find contacts for the strongest solar opportunities, then send property-specific outreach to verified emails."
-            showBulkContactFinder
-          />
-        ) : null}
+        <div key={activeTab} className="admin-tab-stage">
+          {activeTab === 'leads' ? (
+            <AdminCrmPanel
+              currentUser={currentUser}
+              senderEmail={senderEmail}
+              listLimit={100}
+              minScore={65}
+              title="High Score Leads"
+              description="Automatically find contacts for the strongest solar opportunities, then send property-specific outreach to verified emails."
+              showBulkContactFinder
+            />
+          ) : null}
 
-        {activeTab === 'field' ? (
-          <AdminFieldAssignments currentUser={currentUser} senderEmail={senderEmail} />
-        ) : null}
+          {activeTab === 'field' ? (
+            <AdminFieldAssignments currentUser={currentUser} senderEmail={senderEmail} />
+          ) : null}
 
-        {activeTab === 'low' ? (
-          <AdminCrmPanel
-            currentUser={currentUser}
-            senderEmail={senderEmail}
-            listLimit={100}
-            maxScore={64}
-            title="Low Score Leads"
-            description="Lower-priority leads are separated here so admins can review, export, or manually qualify them without slowing down the main queue."
-            showBulkContactFinder
-          />
-        ) : null}
+          {activeTab === 'low' ? (
+            <AdminCrmPanel
+              currentUser={currentUser}
+              senderEmail={senderEmail}
+              listLimit={100}
+              maxScore={64}
+              title="Low Score Leads"
+              description="Lower-priority leads are separated here so admins can review, export, or manually qualify them without slowing down the main queue."
+              showBulkContactFinder
+            />
+          ) : null}
+        </div>
       </section>
     </main>
   )

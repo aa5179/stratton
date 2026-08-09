@@ -41,7 +41,7 @@ function LoginScreen({ onLogin, authError, theme, onToggleTheme }) {
   }
 
   return (
-    <main className="login-shell" data-theme={theme}>
+    <main className="login-shell page-transition page-transition-login" data-theme={theme}>
       <section className="login-panel">
         <div className="login-panel-top">
           <div className="app-brand app-brand-login">
@@ -51,8 +51,14 @@ function LoginScreen({ onLogin, authError, theme, onToggleTheme }) {
               <span>Solar CRM</span>
             </div>
           </div>
-          <button type="button" className="theme-toggle theme-toggle-compact" onClick={onToggleTheme}>
-            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          <button
+            type="button"
+            className="theme-toggle theme-toggle-compact"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
         </div>
 

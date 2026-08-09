@@ -20,6 +20,7 @@ The app uses React + Vite for the frontend, Express for protected API routes, Go
 - Professional property-specific email generation and delivery through Gmail SMTP or Resend.
 - Optional automatic Hot lead outreach when saved leads have an email address.
 - Suppression list to prevent sending to blocked/unsubscribed/bounced emails.
+- Consent-gated automated phone outreach for phone-ready leads through Plivo Voice API or Twilio Voice.
 
 ## Tech Stack
 
@@ -29,6 +30,7 @@ The app uses React + Vite for the frontend, Express for protected API routes, Go
 - Maps/Solar/Places: Google Maps Platform
 - Contact enrichment: Google Places, public website scraping, Hunter, People Data Labs, or custom webhook
 - Email delivery: Gmail SMTP for demos, Resend for production domains
+- Phone calls: Plivo Voice API or Twilio Programmable Voice for scripted outbound calls
 
 ## Environment Variables
 
@@ -53,6 +55,18 @@ RESEND_FROM_EMAIL=onboarding@resend.dev
 EMAIL_PROVIDER=gmail
 GMAIL_USER=your_gmail_address@gmail.com
 GMAIL_APP_PASSWORD=your_16_character_google_app_password
+
+CALL_PROVIDER=plivo
+TEST_CALL_PHONE=+919140819309
+APP_PUBLIC_URL=https://your-public-backend-url.example.com
+PLIVO_AUTH_ID=your_plivo_auth_id
+PLIVO_AUTH_TOKEN=your_plivo_auth_token
+PLIVO_FROM_NUMBER=+15551234567
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_FROM_NUMBER=+15551234567
+TWILIO_VOICE=alice
+STRATTON_CALLBACK_PHONE=+15557654321
 ```
 
 Notes:
@@ -63,6 +77,16 @@ Notes:
 - `GMAIL_APP_PASSWORD` must be a Google App Password, not your normal Gmail password.
 - `EMAIL_PROVIDER=resend` sends through Resend after you verify a production domain.
 - `RESEND_FROM_EMAIL` is optional. During Resend test mode, `onboarding@resend.dev` works only for your verified test recipient. For production, verify a domain in Resend and use something like `sales@yourdomain.com`.
+- `CALL_PROVIDER=plivo` sends normal lead calls through Plivo. Use `CALL_PROVIDER=twilio` only if you want normal lead calls to use Twilio instead.
+- `TEST_CALL_PHONE` controls the temporary admin `Test Call` button recipient.
+- The temporary `Test Call` button always uses the Twilio test path for now, including Twilio's trial-safe fallback template.
+- `APP_PUBLIC_URL` or `PLIVO_PUBLIC_BASE_URL` must point to the public backend URL when using Plivo, because Plivo fetches `/api/calls/answer/:scriptId` after the call is answered. For local testing, expose port `3001` with a tunnel such as ngrok and use that HTTPS URL.
+- `PLIVO_AUTH_ID`, `PLIVO_AUTH_TOKEN`, and `PLIVO_FROM_NUMBER` are required for Plivo calls.
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` are required only when `CALL_PROVIDER=twilio`. Without the selected provider's required configuration, call events are queued in the database.
+- `TWILIO_FROM_NUMBER` must be a Twilio voice-capable number or a verified outgoing caller ID allowed by your Twilio account.
+- `TWILIO_VOICE` is optional. The app defaults to `alice`.
+- `STRATTON_CALLBACK_PHONE` is optional and is spoken in the call script as the callback number.
+- Twilio trial accounts may block custom inline TwiML from the API. The temporary `Test Call` button falls back to Twilio's trial-safe text-to-speech template when that happens. Upgrade Twilio for the full custom Stratton script.
 - Never commit real API keys.
 
 ## Database Setup
@@ -77,6 +101,7 @@ database/004_contact_ready_status.sql
 database/005_prevent_duplicate_leads.sql
 database/006_outbound_email_message_fields.sql
 database/007_employee_outcome_statuses.sql
+database/008_call_campaigns.sql
 ```
 
 `database/003_reset_crm_data_keep_users.sql` is optional and destructive for CRM data. It deletes CRM records but keeps auth users/profiles.
@@ -135,6 +160,8 @@ npm run lint     # ESLint
 8. If the admin enables `Auto-send Hot emails`, Hot leads with an email are sent the property-specific outreach email during save.
 9. Leads with only phone become contact-ready.
 10. Leads with no email or phone stay in the field assignment queue.
+11. Admins can verify phone consent for a phone-ready lead.
+12. `Call Consented Leads` only calls leads that are phone-ready, consent-verified, and not phone-suppressed.
 
 Duplicate protection:
 
@@ -194,6 +221,59 @@ The send flow skips:
 
 Email records are stored in `email_campaigns` and `email_events`, including sender, recipient, subject, text body, HTML body, provider, provider message id, and send status.
 
+## Automated Calls
+
+Automated calls are intentionally gated:
+
+- Lead must have a valid phone number.
+- Lead must have a verified row in `lead_call_consents`.
+- Phone number must not exist in `phone_suppression_list`.
+- Lead status must not be `do_not_contact`, `not_interested`, `closed`, `won`, or `lost`.
+
+Admins can open a lead card and click `Verify Phone Consent` after consent has been collected and documented. Then `Call This Lead` or `Call Consented Leads` can initiate a Plivo or Twilio call, depending on `CALL_PROVIDER`.
+
+The Leads CRM also includes a temporary `Test Call` button. For now, this test button always uses the Twilio test path so trial testing can keep working. It calls:
+
+```text
++919140819309
+```
+
+This is for local validation only. It does not require selecting a lead and does not update lead status. On a Twilio trial account, the app may use Twilio's allowed trial voice template instead of the custom Stratton script because trial API calls have restricted parameters.
+
+The current implementation supports Plivo Voice API and Twilio Programmable Voice. It reads a professional, property-specific Stratton script using the same solar assessment fields as email outreach:
+
+- Property address
+- Estimated panel count
+- Annual energy output
+- Annual savings
+- Upfront installation cost
+- ROI
+- Callback number
+
+If the selected call provider is not configured, calls are saved as queued events instead of being placed. Plivo calls require:
+
+```bash
+CALL_PROVIDER=plivo
+TEST_CALL_PHONE=+919140819309
+APP_PUBLIC_URL=https://your-public-backend-url.example.com
+PLIVO_AUTH_ID=your_plivo_auth_id
+PLIVO_AUTH_TOKEN=your_plivo_auth_token
+PLIVO_FROM_NUMBER=+15551234567
+STRATTON_CALLBACK_PHONE=+15557654321
+```
+
+Twilio calls require:
+
+```bash
+CALL_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_FROM_NUMBER=+15551234567
+STRATTON_CALLBACK_PHONE=+15557654321
+```
+
+For a fully conversational AI agent later, add a provider such as Vapi/Retell or Twilio Media Streams with OpenAI Realtime. That requires a public webhook/WebSocket deployment and extra provider keys, but the database gating stays the same.
+
 ### Gmail Demo Mode
 
 Use Gmail when you do not have a domain yet:
@@ -232,6 +312,8 @@ Add an address to suppression when:
 
 Suppressed emails are skipped by `Send Mails To All`.
 
+Phone suppression is stored separately in `phone_suppression_list`. Add numbers there when someone revokes consent, asks not to be called, or the number is wrong.
+
 ## API Routes
 
 Protected backend routes require a Supabase bearer token.
@@ -241,6 +323,8 @@ Protected backend routes require a Supabase bearer token.
 - `GET /api/solar/state-leads?state=`: sampled state lead scan.
 - `POST /api/enrichment/contact`: admin-only contact enrichment.
 - `POST /api/mail/send-leads`: admin-only email generation and send.
+- `POST /api/calls/verify-consent`: admin-only phone consent verification.
+- `POST /api/calls/send-leads`: admin-only consent-gated outbound call campaign.
 - `GET /api/health`: health check.
 
 ## Production Notes
@@ -251,5 +335,6 @@ Protected backend routes require a Supabase bearer token.
 - Keep Supabase RLS enabled.
 - Run all migrations before testing CRM/email flows.
 - Add monitoring for API failures and email bounces before using this at scale.
+- Do not run automated sales calls unless consent and phone suppression workflows are operational.
 
 See `docs/PRODUCTION_READINESS.md` for the longer production checklist.

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   addSuppressionEntry,
   fetchAdminCrmDashboard,
   saveEnrichedLeadContact,
+  sendLeadCallCampaign,
   sendLeadEmailCampaign,
+  sendTestCall,
+  verifyLeadPhoneConsent,
 } from '../services/dashboardService.js'
 import { enrichLeadContact } from '../services/enrichmentService.js'
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/solarInsights.js'
@@ -26,6 +29,18 @@ const STATUS_LABELS = {
   lost: 'Lost',
   do_not_contact: 'Do Not Contact',
 }
+
+const FILTER_OPTIONS = [
+  { value: 'all', label: 'All leads' },
+  { value: 'email_ready', label: 'Email ready' },
+  { value: 'contact_ready', label: 'Contact ready' },
+  { value: 'call_ready', label: 'Call ready' },
+  { value: 'field_needed', label: 'Field needed' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'won', label: 'Won' },
+  { value: 'lost', label: 'Lost' },
+  { value: 'do_not_contact', label: 'Do not contact' },
+]
 
 function formatAddress(lead) {
   return [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(', ')
@@ -50,6 +65,24 @@ function getOpenTicket(lead) {
 
 function getLatestEmailEvent(lead) {
   return lead.emailEvents?.[0] ?? null
+}
+
+function getLatestCallEvent(lead) {
+  return lead.callEvents?.[0] ?? null
+}
+
+function getLatestPhoneConsent(lead) {
+  return lead.callConsents?.[0] ?? null
+}
+
+function isCallReadyLead(lead) {
+  const consent = getLatestPhoneConsent(lead)
+  const blockedStatuses = new Set(['do_not_contact', 'not_interested', 'closed', 'won', 'lost'])
+
+  return Boolean(lead.phone)
+    && consent?.status === 'verified'
+    && !consent.revoked_at
+    && !blockedStatuses.has(lead.status)
 }
 
 function downloadCsv(filename, rows) {
@@ -105,12 +138,21 @@ function DetailStat({ label, value }) {
   )
 }
 
-function LeadDetailPanel({ lead }) {
+function LeadDetailPanel({
+  lead,
+  onVerifyConsent,
+  onCallLead,
+  verifyingConsent,
+  callingLead,
+}) {
   const assessment = lead.assessment ?? {}
   const ticket = getOpenTicket(lead)
   const emailEvent = getLatestEmailEvent(lead)
+  const callEvent = getLatestCallEvent(lead)
+  const phoneConsent = getLatestPhoneConsent(lead)
   const lat = toNumber(lead.lat)
   const lng = toNumber(lead.lng)
+  const callReady = isCallReadyLead(lead)
 
   return (
     <div className="admin-crm-lead-detail">
@@ -119,6 +161,8 @@ function LeadDetailPanel({ lead }) {
         <DetailStat label="Business" value={lead.business_name || '-'} />
         <DetailStat label="Email" value={lead.email || 'Missing'} />
         <DetailStat label="Phone" value={lead.phone || 'Missing'} />
+        <DetailStat label="Phone Consent" value={phoneConsent?.status === 'verified' && !phoneConsent.revoked_at ? 'Verified' : 'Missing'} />
+        <DetailStat label="Latest Call" value={callEvent ? callEvent.status : 'No call event'} />
         <DetailStat label="Property Type" value={lead.property_type || lead.parcel?.property_type || '-'} />
         <DetailStat label="Source" value={lead.source || '-'} />
       </div>
@@ -135,27 +179,155 @@ function LeadDetailPanel({ lead }) {
       <div className="admin-crm-detail-footer">
         <span>Ticket: {ticket ? STATUS_LABELS[ticket.status] ?? ticket.status : 'No open ticket'}</span>
         <span>Email: {emailEvent ? STATUS_LABELS[emailEvent.status] ?? emailEvent.status : 'No email event'}</span>
+        <span>Call: {callEvent ? callEvent.status : 'No call event'}</span>
         <span>Location: {lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : '-'}</span>
         <span>Created: {lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-US') : '-'}</span>
+      </div>
+
+      <div className="admin-crm-detail-actions">
+        <button
+          type="button"
+          onClick={() => onVerifyConsent(lead)}
+          disabled={!lead.phone || verifyingConsent}
+        >
+          {verifyingConsent ? 'Verifying...' : phoneConsent?.status === 'verified' ? 'Consent Verified' : 'Verify Phone Consent'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onCallLead(lead)}
+          disabled={!callReady || callingLead}
+        >
+          {callingLead ? 'Calling...' : 'Call This Lead'}
+        </button>
       </div>
     </div>
   )
 }
 
-function LeadRow({ lead, expanded, onToggle }) {
+function LeadsLoadingState() {
   return (
-    <div className={`admin-crm-lead-row ${expanded ? 'admin-crm-lead-row-expanded' : ''}`}>
+    <div className="admin-crm-loading">
+      <div className="admin-crm-loading-ring" aria-hidden="true" />
+      <div className="admin-crm-loading-copy">
+        <strong>Loading leads</strong>
+        <span>Preparing the CRM list...</span>
+      </div>
+      <div className="admin-crm-loading-bar" aria-hidden="true">
+        <span />
+      </div>
+    </div>
+  )
+}
+
+function CrmFilterDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef(null)
+  const selectedOption = FILTER_OPTIONS.find((option) => option.value === value) ?? FILTER_OPTIONS[0]
+
+  useEffect(() => {
+    if (!open) {
+      return undefined
+    }
+
+    const closeOnOutsideClick = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  const selectOption = (option) => {
+    onChange(option.value)
+    setOpen(false)
+  }
+
+  return (
+    <div
+      className={`crm-filter-shell ${open ? 'crm-filter-shell-open' : ''}`}
+      ref={dropdownRef}
+    >
+      <span>Filter</span>
+      <button
+        type="button"
+        className="crm-filter-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selectedOption.label}</span>
+      </button>
+      {open ? (
+        <div className="crm-filter-menu" role="listbox" aria-label="Lead filter">
+          {FILTER_OPTIONS.map((option) => (
+            <button
+              type="button"
+              key={option.value}
+              role="option"
+              aria-selected={option.value === value}
+              className={`crm-filter-option ${option.value === value ? 'crm-filter-option-active' : ''}`}
+              onClick={() => selectOption(option)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function LeadRow({
+  lead,
+  expanded,
+  onToggle,
+  index,
+  onVerifyConsent,
+  onCallLead,
+  verifyingConsent,
+  callingLead,
+}) {
+  return (
+    <div
+      className={`admin-crm-lead-row ${expanded ? 'admin-crm-lead-row-expanded' : ''}`}
+      style={{ '--lead-index': index }}
+    >
       <button type="button" className="admin-crm-lead-main" onClick={onToggle}>
-        <div>
-          <p>{formatNumber(toNumber(lead.lead_score) ?? 0)} - {lead.priority} - {STATUS_LABELS[lead.status] ?? lead.status}</p>
+        <div className="admin-crm-lead-copy">
+          <div className="admin-crm-lead-meta">
+            <span>{formatNumber(toNumber(lead.lead_score) ?? 0)}</span>
+            <span>{lead.priority}</span>
+            <span>{STATUS_LABELS[lead.status] ?? lead.status}</span>
+          </div>
           <strong>{formatAddress(lead)}</strong>
-          <span>
+          <small>
             {lead.email || 'email missing'} - {lead.phone || 'phone missing'} - {lead.owner_name || lead.parcel?.owner_name || 'owner needed'}
-          </span>
+          </small>
         </div>
         <span className="admin-crm-expand-indicator">{expanded ? 'Hide' : 'Open'}</span>
       </button>
-      {expanded ? <LeadDetailPanel lead={lead} /> : null}
+      {expanded ? (
+        <LeadDetailPanel
+          lead={lead}
+          onVerifyConsent={onVerifyConsent}
+          onCallLead={onCallLead}
+          verifyingConsent={verifyingConsent}
+          callingLead={callingLead}
+        />
+      ) : null}
     </div>
   )
 }
@@ -181,6 +353,10 @@ function AdminCrmPanel({
   const [bulkFinding, setBulkFinding] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
   const [sendingEmails, setSendingEmails] = useState(false)
+  const [callingLeads, setCallingLeads] = useState(false)
+  const [testCalling, setTestCalling] = useState(false)
+  const [callingLeadId, setCallingLeadId] = useState('')
+  const [verifyingConsentId, setVerifyingConsentId] = useState('')
   const [suppressionEmail, setSuppressionEmail] = useState('')
 
   const loadDashboard = useCallback(async () => {
@@ -241,6 +417,7 @@ function AdminCrmPanel({
     if (filter === 'all') return true
     if (filter === 'email_ready') return Boolean(lead.email)
     if (filter === 'contact_ready') return lead.status === 'contact_ready' || (!lead.email && Boolean(lead.phone))
+    if (filter === 'call_ready') return isCallReadyLead(lead)
     if (filter === 'field_needed') return !lead.email && !lead.phone
     return lead.status === filter
   }), [filter, scoreFilteredLeads])
@@ -250,6 +427,7 @@ function AdminCrmPanel({
     const contactReady = scoreFilteredLeads.filter((lead) => (
       lead.status === 'contact_ready' || (!lead.email && Boolean(lead.phone))
     )).length
+    const callReady = scoreFilteredLeads.filter(isCallReadyLead).length
     const fieldNeeded = scoreFilteredLeads.filter((lead) => !lead.email && !lead.phone).length
     const visibleLeadIds = new Set(scoreFilteredLeads.map((lead) => lead.id))
     const openTickets = tickets.filter((ticket) => (
@@ -260,7 +438,7 @@ function AdminCrmPanel({
     ), 0)
     const totalSavings = scoreFilteredLeads.reduce((sum, lead) => sum + (Number(lead.assessment?.annual_savings) || 0), 0)
 
-    return { emailReady, contactReady, fieldNeeded, openTickets, queuedEmails, totalSavings }
+    return { emailReady, contactReady, callReady, fieldNeeded, openTickets, queuedEmails, totalSavings }
   }, [scoreFilteredLeads, tickets])
 
   const findContactsForVisibleLeads = async () => {
@@ -362,6 +540,101 @@ function AdminCrmPanel({
     }
   }
 
+  const verifyPhoneConsent = async (lead) => {
+    if (!lead?.phone) {
+      setMessage('This lead needs a phone number before consent can be verified.')
+      return
+    }
+
+    setVerifyingConsentId(lead.id)
+    setMessage('')
+    setError('')
+
+    try {
+      await verifyLeadPhoneConsent({
+        leadId: lead.id,
+        phone: lead.phone,
+        source: 'manual_admin',
+        note: 'Admin verified prior consent before outbound automated calling.',
+      })
+      setMessage('Phone consent verified for this lead.')
+      await loadDashboard()
+    } catch (consentError) {
+      setError(consentError.message || 'Unable to verify phone consent.')
+    } finally {
+      setVerifyingConsentId('')
+    }
+  }
+
+  const callLeadBatch = async (leadIds) => {
+    setCallingLeads(true)
+    setMessage('')
+    setError('')
+
+    try {
+      const summary = await sendLeadCallCampaign({ leadIds })
+      const deliveryText = summary.providerConfigured
+        ? `${formatNumber(summary.initiated)} initiated, ${formatNumber(summary.failed)} failed`
+        : `${formatNumber(summary.queued)} queued because the selected call provider is not fully configured`
+      const providerError = summary.errors?.[0]?.message ? ` Provider message: ${summary.errors[0].message}` : ''
+
+      setMessage(`${deliveryText}. ${formatNumber(summary.skipped)} skipped by missing phone consent, phone suppression, or blocked status.${providerError}`)
+      await loadDashboard()
+    } catch (callError) {
+      setError(callError.message || 'Unable to start lead calls.')
+    } finally {
+      setCallingLeads(false)
+    }
+  }
+
+  const callConsentedLeads = async () => {
+    const leadIds = scoreFilteredLeads
+      .filter(isCallReadyLead)
+      .map((lead) => lead.id)
+
+    if (!leadIds.length) {
+      setMessage('No call-ready leads are available in this tab. Verify phone consent first.')
+      return
+    }
+
+    await callLeadBatch(leadIds)
+  }
+
+  const callSingleLead = async (lead) => {
+    if (!isCallReadyLead(lead)) {
+      setMessage('This lead needs phone_ready + consent_verified + not_suppressed before calling.')
+      return
+    }
+
+    setCallingLeadId(lead.id)
+
+    try {
+      await callLeadBatch([lead.id])
+    } finally {
+      setCallingLeadId('')
+    }
+  }
+
+  const sendTestCallToConfiguredNumber = async () => {
+    setTestCalling(true)
+    setMessage('')
+    setError('')
+
+    try {
+      const summary = await sendTestCall()
+      const deliveryText = summary.providerConfigured
+        ? `Test call ${summary.status} to ${summary.to}`
+        : `Test call queued for ${summary.to} because the selected call provider is not fully configured`
+      const providerError = summary.errorMessage ? ` Provider message: ${summary.errorMessage}` : ''
+
+      setMessage(`${deliveryText}.${providerError}`)
+    } catch (callError) {
+      setError(callError.message || 'Unable to send the test call.')
+    } finally {
+      setTestCalling(false)
+    }
+  }
+
   const submitSuppression = async (event) => {
     event.preventDefault()
     setMessage('')
@@ -398,6 +671,7 @@ function AdminCrmPanel({
         <MiniStat label="Leads" value={formatNumber(scoreFilteredLeads.length)} />
         <MiniStat label="Email Ready" value={formatNumber(stats.emailReady)} />
         <MiniStat label="Contact Ready" value={formatNumber(stats.contactReady)} />
+        <MiniStat label="Call Ready" value={formatNumber(stats.callReady)} />
         <MiniStat label="Field Needed" value={formatNumber(stats.fieldNeeded)} />
         <MiniStat label="Open Tickets" value={formatNumber(stats.openTickets)} />
         <MiniStat label="Queued Emails" value={formatNumber(stats.queuedEmails)} />
@@ -408,27 +682,26 @@ function AdminCrmPanel({
       {error ? <p className="admin-assignment-error">{error}</p> : null}
 
       <div className="admin-crm-toolbar">
-        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-          <option value="all">All leads</option>
-          <option value="email_ready">Email ready</option>
-          <option value="contact_ready">Contact ready</option>
-          <option value="field_needed">Field needed</option>
-          <option value="interested">Interested</option>
-          <option value="won">Won</option>
-          <option value="lost">Lost</option>
-          <option value="do_not_contact">Do not contact</option>
-        </select>
-        <button type="button" onClick={() => downloadCsv('solar-leads.csv', filteredLeads)}>
-          Export CSV
-        </button>
-        <button type="button" onClick={sendMailsToAllLeads} disabled={sendingEmails || !senderEmail}>
-          {sendingEmails ? 'Sending...' : 'Send Mails To All'}
-        </button>
-        {showBulkContactFinder ? (
-          <button type="button" onClick={findContactsForVisibleLeads} disabled={bulkFinding}>
-            {bulkFinding ? 'Finding...' : 'Find Contacts For All'}
+        <CrmFilterDropdown value={filter} onChange={setFilter} />
+        <div className="admin-crm-toolbar-actions">
+          <button type="button" onClick={() => downloadCsv('solar-leads.csv', filteredLeads)}>
+            Export CSV
           </button>
-        ) : null}
+          <button type="button" onClick={sendMailsToAllLeads} disabled={sendingEmails || !senderEmail}>
+            {sendingEmails ? 'Sending...' : 'Send Mails To All'}
+          </button>
+          <button type="button" onClick={callConsentedLeads} disabled={callingLeads}>
+            {callingLeads ? 'Calling...' : 'Call Consented Leads'}
+          </button>
+          <button type="button" onClick={sendTestCallToConfiguredNumber} disabled={testCalling}>
+            {testCalling ? 'Calling Test...' : 'Test Call'}
+          </button>
+          {showBulkContactFinder ? (
+            <button type="button" onClick={findContactsForVisibleLeads} disabled={bulkFinding}>
+              {bulkFinding ? 'Finding...' : 'Find Contacts For All'}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {bulkProgress ? (
@@ -437,13 +710,20 @@ function AdminCrmPanel({
         </p>
       ) : null}
 
-      <div className="admin-crm-list">
-        {filteredLeads.slice(0, listLimit).map((lead) => (
+      <div className={`admin-crm-list ${loading ? 'admin-crm-list-loading' : 'admin-crm-list-ready'}`}>
+        {loading ? (
+          <LeadsLoadingState />
+        ) : filteredLeads.slice(0, listLimit).map((lead, index) => (
           <LeadRow
             key={lead.id}
             lead={lead}
+            index={index}
             expanded={expandedLeadId === lead.id}
             onToggle={() => setExpandedLeadId((currentId) => (currentId === lead.id ? null : lead.id))}
+            onVerifyConsent={verifyPhoneConsent}
+            onCallLead={callSingleLead}
+            verifyingConsent={verifyingConsentId === lead.id}
+            callingLead={callingLeadId === lead.id}
           />
         ))}
       </div>

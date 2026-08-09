@@ -27,6 +27,12 @@ function isValidEmail(email) {
   return VALID_EMAIL_PATTERN.test(String(email || '').trim())
 }
 
+function isMissingRelationError(error) {
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || /lead_call_consents|call_events|phone_suppression_list|call_campaigns/i.test(error?.message || '')
+}
+
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured.')
@@ -194,6 +200,31 @@ export async function fetchAdminCrmDashboard() {
     throw new Error(emailEventError.message || 'Unable to load email events.')
   }
 
+  const { data: callEvents, error: callEventError } = leadIds.length
+    ? await supabase
+      .from('call_events')
+      .select('id, lead_id, campaign_id, to_phone, from_phone, status, provider, provider_call_id, error_message, initiated_at, completed_at, created_at')
+      .in('lead_id', leadIds)
+      .order('created_at', { ascending: false })
+      .limit(300)
+    : { data: [], error: null }
+
+  if (callEventError && !isMissingRelationError(callEventError)) {
+    throw new Error(callEventError.message || 'Unable to load call events.')
+  }
+
+  const { data: callConsents, error: callConsentError } = leadIds.length
+    ? await supabase
+      .from('lead_call_consents')
+      .select('id, lead_id, phone, status, source, consented_at, revoked_at, created_at')
+      .in('lead_id', leadIds)
+      .order('created_at', { ascending: false })
+    : { data: [], error: null }
+
+  if (callConsentError && !isMissingRelationError(callConsentError)) {
+    throw new Error(callConsentError.message || 'Unable to load call consent records.')
+  }
+
   const { data: suppressionList, error: suppressionError } = await supabase
     .from('suppression_list')
     .select('id, email, reason, note, created_at')
@@ -232,6 +263,20 @@ export async function fetchAdminCrmDashboard() {
     map[event.lead_id].push(event)
     return map
   }, {})
+  const callEventsByLead = (callEvents ?? []).reduce((map, event) => {
+    if (!map[event.lead_id]) {
+      map[event.lead_id] = []
+    }
+    map[event.lead_id].push(event)
+    return map
+  }, {})
+  const callConsentsByLead = (callConsents ?? []).reduce((map, consent) => {
+    if (!map[consent.lead_id]) {
+      map[consent.lead_id] = []
+    }
+    map[consent.lead_id].push(consent)
+    return map
+  }, {})
 
   return {
     leads: (leads ?? []).map((lead) => ({
@@ -240,6 +285,8 @@ export async function fetchAdminCrmDashboard() {
       assessment: assessmentsByLead[lead.id] ?? null,
       tickets: ticketsByLead[lead.id] ?? [],
       emailEvents: emailEventsByLead[lead.id] ?? [],
+      callEvents: callEventsByLead[lead.id] ?? [],
+      callConsents: callConsentsByLead[lead.id] ?? [],
     })),
     tickets: tickets ?? [],
     employees: employees ?? [],
@@ -299,6 +346,71 @@ export async function sendLeadEmailCampaign({
 
   if (!response.ok) {
     throw new Error(payload?.error || 'Unable to send lead emails.')
+  }
+
+  return payload
+}
+
+export async function verifyLeadPhoneConsent({ leadId, phone = '', source = 'manual_admin', note = '' }) {
+  if (!leadId) {
+    throw new Error('Lead is required.')
+  }
+
+  const response = await apiFetch('/api/calls/verify-consent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      leadId,
+      phone,
+      source,
+      note,
+    }),
+  })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Unable to verify phone consent.')
+  }
+
+  return payload
+}
+
+export async function sendLeadCallCampaign({ leadIds }) {
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
+    throw new Error('No leads are available for calling.')
+  }
+
+  const response = await apiFetch('/api/calls/send-leads', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      leadIds,
+    }),
+  })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Unable to send lead calls.')
+  }
+
+  return payload
+}
+
+export async function sendTestCall() {
+  const response = await apiFetch('/api/calls/test', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Unable to send the test call.')
   }
 
   return payload

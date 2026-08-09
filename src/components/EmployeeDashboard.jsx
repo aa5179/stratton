@@ -277,7 +277,7 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
   }, [tickets])
 
   return (
-    <main className="employee-dashboard" data-theme={theme}>
+    <main className="employee-dashboard page-transition page-transition-dashboard" data-theme={theme}>
       <header className="employee-topbar">
         <div>
           <div className="app-brand app-brand-header">

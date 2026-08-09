@@ -25,6 +25,7 @@ function TopBar({
   onToggleTheme,
 }) {
   const [autocomplete, setAutocomplete] = useState(null)
+  const radiusProgress = `${Math.min(100, Math.max(0, ((radiusMeters - 10) / 110) * 100))}%`
 
   const handlePlaceChanged = () => {
     if (!autocomplete) {
@@ -65,8 +66,14 @@ function TopBar({
             </div>
           </div>
           <div className="topbar-actions">
-            <button type="button" className="theme-toggle theme-toggle-compact" onClick={onToggleTheme}>
-              <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            <button
+              type="button"
+              className="theme-toggle theme-toggle-compact"
+              onClick={onToggleTheme}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              <span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
             </button>
             <button
               type="button"
@@ -95,8 +102,8 @@ function TopBar({
       </div>
 
       <div className="space-y-3">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase text-slate-400">
+        <div className="map-search-shell">
+          <span className="map-search-label">
             Search
           </span>
           {isLoaded ? (
@@ -105,7 +112,7 @@ function TopBar({
                 type="text"
                 disabled={disabled}
                 placeholder="City, ZIP, or address"
-                className="w-full rounded-lg border border-slate-200 bg-white py-3 pl-16 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-500 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="map-search-input"
               />
             </Autocomplete>
           ) : (
@@ -114,12 +121,12 @@ function TopBar({
               disabled
               value="Loading Google Maps..."
               aria-label="Loading Google Maps"
-              className="w-full rounded-lg border border-slate-200 bg-white py-3 pl-16 pr-4 text-sm font-medium text-slate-500 outline-none"
+              className="map-search-input"
             />
           )}
         </div>
 
-        <div className="control-surface rounded-lg p-3">
+        <div className="control-surface radius-control-surface rounded-lg p-3">
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="radius-control" className="text-xs font-semibold uppercase">
               Building radius
@@ -131,10 +138,11 @@ function TopBar({
             type="range"
             min="10"
             max="120"
-            step="5"
+            step="1"
             value={radiusMeters}
             onChange={(event) => onRadiusChange(Number(event.target.value))}
-            className="mt-3 w-full accent-cyan-400"
+            className="map-radius-slider mt-3 w-full"
+            style={{ '--radius-progress': radiusProgress }}
           />
           <div className="muted-copy mt-2 flex justify-between text-[0.7rem]">
             <span>10 m</span>

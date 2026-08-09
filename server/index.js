@@ -4,6 +4,8 @@ import dotenv from 'dotenv'
 import solarRouter from './routes/solar.js'
 import enrichmentRouter from './routes/enrichment.js'
 import mailRouter from './routes/mail.js'
+import callsRouter from './routes/calls.js'
+import callWebhooksRouter from './routes/callWebhooks.js'
 import { requireAdmin, requireUser } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
 
@@ -20,8 +22,10 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true })
 })
 
+app.use('/api/calls', callWebhooksRouter)
 app.use('/api', requireUser, requireAdmin, rateLimit({ name: 'enrichment', max: 80 }), enrichmentRouter)
 app.use('/api', requireUser, requireAdmin, rateLimit({ name: 'mail', max: 25 }), mailRouter)
+app.use('/api', requireUser, requireAdmin, rateLimit({ name: 'calls', max: 12 }), callsRouter)
 app.use('/api', requireUser, rateLimit({ name: 'solar', max: 90 }), solarRouter)
 
 app.use((error, _request, response, next) => {

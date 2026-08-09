@@ -37,7 +37,7 @@ function SearchBar({ onPlaceSelected, disabled = false, isLoaded = false }) {
         type="text"
         disabled={disabled}
         placeholder="Search City / ZIP / Address"
-        className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-9 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-500 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+        className="map-search-input"
       />
     </Autocomplete>
   ) : (
@@ -46,7 +46,7 @@ function SearchBar({ onPlaceSelected, disabled = false, isLoaded = false }) {
       disabled
       value="Loading Google Maps..."
       aria-label="Loading Google Maps"
-      className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-9 pr-4 text-sm font-medium text-slate-500 outline-none"
+      className="map-search-input"
     />
   )
 }

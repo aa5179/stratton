@@ -16,6 +16,21 @@ function formatAddress(lead) {
   return [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(', ')
 }
 
+function AssignmentLoadingState() {
+  return (
+    <div className="admin-crm-loading admin-assignment-loading">
+      <div className="admin-crm-loading-ring" aria-hidden="true" />
+      <div className="admin-crm-loading-copy">
+        <strong>Loading no-email queue</strong>
+        <span>Preparing field assignment leads...</span>
+      </div>
+      <div className="admin-crm-loading-bar" aria-hidden="true">
+        <span />
+      </div>
+    </div>
+  )
+}
+
 function AdminFieldAssignments({ currentUser, senderEmail }) {
   const [employees, setEmployees] = useState([])
   const [tickets, setTickets] = useState([])
@@ -306,15 +321,17 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
         </div>
       ) : null}
 
-      <div className="admin-assignment-list">
-        {tickets.slice(0, 8).map((ticket) => {
+      <div className={`admin-assignment-list ${loading ? 'admin-assignment-list-loading' : 'admin-assignment-list-ready'}`}>
+        {loading ? (
+          <AssignmentLoadingState />
+        ) : tickets.slice(0, 8).map((ticket, index) => {
           const lead = ticket.lead
           const assessment = ticket.assessment
 
           return (
-            <div className="admin-assignment-item" key={ticket.id}>
+            <div className="admin-assignment-item" key={ticket.id} style={{ '--ticket-index': index }}>
               <div className="admin-assignment-item-main">
-                <p>Score {formatNumber(lead?.lead_score ?? 0)} · {lead?.priority || 'Low'}</p>
+                <p>Score {formatNumber(lead?.lead_score ?? 0)} - {lead?.priority || 'Low'}</p>
                 <h3>{formatAddress(lead)}</h3>
                 <div>
                   <span>{lead?.owner_name || lead?.parcel?.owner_name || 'owner needed'}</span>
