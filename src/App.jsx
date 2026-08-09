@@ -442,6 +442,9 @@ function App() {
     maxPanelCount,
     requestedPanelCount ?? maxPanelCount,
   )
+  const panelSliderProgress = maxPanelCount > 0
+    ? `${(selectedPanelCount / maxPanelCount) * 100}%`
+    : '0%'
   const deferredSelectedPanelCount = useDeferredValue(selectedPanelCount)
 
   const kpiCards = [
@@ -630,6 +633,7 @@ function App() {
           </div>
 
           <input
+            aria-label="Panel count"
             type="range"
             min="0"
             max={maxPanelCount}
@@ -637,7 +641,8 @@ function App() {
             value={selectedPanelCount}
             disabled={!maxPanelCount || solarLoading}
             onChange={(event) => setRequestedPanelCount(Number(event.target.value))}
-            className="mt-3 w-full accent-emerald-300 disabled:opacity-50"
+            className="map-radius-slider panel-count-slider mt-3 w-full disabled:opacity-50"
+            style={{ '--radius-progress': panelSliderProgress }}
           />
 
           <div className="mt-3 grid grid-cols-2 gap-2">

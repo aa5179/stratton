@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AdminCrmPanel from './AdminCrmPanel.jsx'
 import AdminFieldAssignments from './AdminFieldAssignments.jsx'
+import { LogoutIcon } from './HeaderActionIcons.jsx'
 
 function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTheme }) {
   const [activeTab, setActiveTab] = useState('leads')
@@ -35,7 +36,15 @@ function AdminLeadsPage({ currentUser, onBackToMap, onSignOut, theme, onToggleTh
             <span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
           <button type="button" onClick={onBackToMap}>Map</button>
-          <button type="button" onClick={onSignOut}>Logout</button>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="icon-action-button"
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogoutIcon />
+          </button>
         </div>
       </header>
 

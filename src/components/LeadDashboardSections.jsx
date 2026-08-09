@@ -81,7 +81,7 @@ function SaveLeadsAction({
   }
 
   return (
-    <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+    <div className="save-leads-action mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-emerald-900">Save scanned leads</p>
@@ -99,7 +99,7 @@ function SaveLeadsAction({
         </button>
       </div>
 
-      <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white/75 p-2.5">
+      <label className="save-leads-toggle save-leads-toggle-emerald mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white/75 p-2.5">
         <span className="min-w-0">
           <span className="block text-xs font-semibold text-emerald-950">Auto-send Hot emails</span>
           <span className="block text-xs leading-5 text-emerald-700">
@@ -114,7 +114,7 @@ function SaveLeadsAction({
         />
       </label>
 
-      <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/85 p-2.5">
+      <label className="save-leads-toggle save-leads-toggle-amber mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/85 p-2.5">
         <span className="min-w-0">
           <span className="block text-xs font-semibold text-amber-950">Test auto-send</span>
           <span className="block text-xs leading-5 text-amber-800">
@@ -496,7 +496,7 @@ export function LeadInsightsPanel({ lead, currentStateRate }) {
           <MetricTile label="Estimated Payback" value={typeof paybackYears === 'number' ? `${formatNumber(paybackYears, 1)} years` : '-'} />
           <MetricTile label="Estimated ROI" value={formatPercentage(lead.roi)} />
 
-          <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+          <div className="cost-note-panel md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3.5">
             <p className="text-[0.72rem] font-semibold uppercase text-amber-700">Cost note</p>
             <p className="mt-1.5 text-sm leading-6 text-amber-800">
               Upfront cost is an app estimate based on the selected panel count. Final installed

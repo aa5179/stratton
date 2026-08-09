@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAssignedTickets, updateAssignedTicket } from '../services/dashboardService.js'
 import { formatCurrency, formatNumber, formatPercentage } from '../utils/solarInsights.js'
+import { LogoutIcon } from './HeaderActionIcons.jsx'
+
+const TAB_TRANSITION_MS = 260
+const TAB_REVEAL_DELAY_MS = 90
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
@@ -12,6 +16,12 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Closed' },
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
+]
+
+const TICKET_TABS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'follow_up', label: 'Follow Up' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 function formatAddress(lead) {
@@ -33,6 +43,16 @@ function getPriorityClass(priority) {
   return 'employee-priority'
 }
 
+function isFollowUpTicket(ticket) {
+  return ticket.status === 'follow_up' || Boolean(ticket.next_follow_up_at)
+}
+
+function getTicketTab(ticket) {
+  if (ticket.status === 'pending') return 'pending'
+  if (isFollowUpTicket(ticket)) return 'follow_up'
+  return 'closed'
+}
+
 function EmployeeStat({ label, value, hint }) {
   return (
     <div className="employee-stat">
@@ -43,7 +63,7 @@ function EmployeeStat({ label, value, hint }) {
   )
 }
 
-function TicketCard({ ticket, isActive, onSelect }) {
+function TicketCard({ ticket, isActive, onSelect, index }) {
   const lead = ticket.lead
 
   return (
@@ -51,6 +71,8 @@ function TicketCard({ ticket, isActive, onSelect }) {
       type="button"
       className={`employee-ticket-card ${isActive ? 'employee-ticket-card-active' : ''}`}
       onClick={() => onSelect(ticket.id)}
+      style={{ '--ticket-index': index }}
+      aria-pressed={isActive}
     >
       <div className="employee-ticket-card-header">
         <div>
@@ -62,22 +84,73 @@ function TicketCard({ ticket, isActive, onSelect }) {
       <div className="employee-ticket-meta">
         <span>{getStatusLabel(ticket.status)}</span>
         <span>{lead?.phone || 'Phone needed'}</span>
+        {ticket.next_follow_up_at ? (
+          <span>Follow up {new Date(ticket.next_follow_up_at).toLocaleDateString('en-US')}</span>
+        ) : null}
       </div>
     </button>
   )
 }
 
+function EmployeeTicketsLoadingState({ label = 'tickets' }) {
+  return (
+    <div className="admin-crm-loading employee-ticket-loading">
+      <div className="admin-crm-loading-ring" aria-hidden="true" />
+      <div className="admin-crm-loading-copy">
+        <strong>Loading {label.toLowerCase()}</strong>
+        <span>Preparing assigned visits...</span>
+      </div>
+      <div className="admin-crm-loading-bar" aria-hidden="true">
+        <span />
+      </div>
+    </div>
+  )
+}
+
+function EmployeeDetailsLoadingState({ label = 'tickets' }) {
+  return (
+    <section className="employee-details employee-details-loading" aria-live="polite" aria-busy="true">
+      <div className="admin-crm-loading employee-details-loader">
+        <div className="admin-crm-loading-ring" aria-hidden="true" />
+        <div className="admin-crm-loading-copy">
+          <strong>Loading client details</strong>
+          <span>Opening {label.toLowerCase()} client records...</span>
+        </div>
+        <div className="admin-crm-loading-bar" aria-hidden="true">
+          <span />
+        </div>
+      </div>
+      <div className="employee-details-skeleton" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+    </section>
+  )
+}
+
+function getSavedTicketFormValues(ticket) {
+  return {
+    note: ticket?.notes ?? '',
+    email: ticket?.lead?.email ?? '',
+    phone: ticket?.lead?.phone ?? '',
+  }
+}
+
 function TicketDetails({ ticket, onUpdated }) {
+  const savedValues = getSavedTicketFormValues(ticket)
   const [status, setStatus] = useState(ticket?.status ?? 'pending')
-  const [note, setNote] = useState('')
-  const [collectedEmail, setCollectedEmail] = useState('')
-  const [collectedPhone, setCollectedPhone] = useState('')
+  const [note, setNote] = useState(savedValues.note)
+  const [collectedEmail, setCollectedEmail] = useState(savedValues.email)
+  const [collectedPhone, setCollectedPhone] = useState(savedValues.phone)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
   if (!ticket) {
     return (
-      <section className="employee-details employee-empty-state">
+      <section className="employee-details employee-details-ready employee-empty-state">
         <p className="employee-eyebrow">Client details</p>
         <h2>Select a ticket</h2>
         <p>Assigned client visits will appear here after an admin assigns tickets to your profile.</p>
@@ -103,9 +176,6 @@ function TicketDetails({ ticket, onUpdated }) {
         collectedPhone,
       })
       setMessage('Ticket updated.')
-      setNote('')
-      setCollectedEmail('')
-      setCollectedPhone('')
       await onUpdated()
     } catch (error) {
       setMessage(error.message || 'Unable to update ticket.')
@@ -115,7 +185,7 @@ function TicketDetails({ ticket, onUpdated }) {
   }
 
   return (
-    <section className="employee-details">
+    <section className="employee-details employee-details-ready">
       <div className="employee-details-header">
         <div>
           <p className="employee-eyebrow">Client details</p>
@@ -200,8 +270,18 @@ function TicketDetails({ ticket, onUpdated }) {
 function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([])
   const [activeTicketId, setActiveTicketId] = useState(null)
+  const [activeTicketTab, setActiveTicketTab] = useState('pending')
+  const [renderedTicketTab, setRenderedTicketTab] = useState('pending')
+  const [tabTransitioning, setTabTransitioning] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const ticketGroupsRef = useRef({
+    pending: [],
+    follow_up: [],
+    closed: [],
+  })
+  const tabTransitionTimerRef = useRef(null)
+  const tabRevealTimerRef = useRef(null)
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -261,20 +341,70 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
     }
   }, [currentUser.id])
 
+  const ticketGroups = useMemo(() => tickets.reduce((groups, ticket) => {
+    groups[getTicketTab(ticket)].push(ticket)
+    return groups
+  }, {
+    pending: [],
+    follow_up: [],
+    closed: [],
+  }), [tickets])
+
+  useEffect(() => {
+    ticketGroupsRef.current = ticketGroups
+  }, [ticketGroups])
+
+  useEffect(() => () => {
+    window.clearTimeout(tabTransitionTimerRef.current)
+    window.clearTimeout(tabRevealTimerRef.current)
+  }, [])
+
+  const handleTicketTabChange = useCallback((nextTab) => {
+    if (nextTab === activeTicketTab && !tabTransitioning) {
+      return
+    }
+
+    window.clearTimeout(tabTransitionTimerRef.current)
+    window.clearTimeout(tabRevealTimerRef.current)
+    setActiveTicketTab(nextTab)
+    setTabTransitioning(true)
+
+    tabTransitionTimerRef.current = window.setTimeout(() => {
+      const nextTickets = ticketGroupsRef.current[nextTab] ?? []
+
+      setRenderedTicketTab(nextTab)
+      setActiveTicketId(nextTickets[0]?.id ?? null)
+
+      tabRevealTimerRef.current = window.setTimeout(() => {
+        setTabTransitioning(false)
+      }, TAB_REVEAL_DELAY_MS)
+    }, TAB_TRANSITION_MS)
+  }, [activeTicketTab, tabTransitioning])
+
+  const visibleTickets = useMemo(
+    () => ticketGroups[renderedTicketTab] ?? [],
+    [renderedTicketTab, ticketGroups],
+  )
+
+  const selectedTicketId = visibleTickets.some((ticket) => ticket.id === activeTicketId)
+    ? activeTicketId
+    : visibleTickets[0]?.id ?? null
+
   const activeTicket = useMemo(
-    () => tickets.find((ticket) => ticket.id === activeTicketId) ?? null,
-    [activeTicketId, tickets],
+    () => visibleTickets.find((ticket) => ticket.id === selectedTicketId) ?? null,
+    [selectedTicketId, visibleTickets],
   )
 
   const stats = useMemo(() => {
-    const openTickets = tickets.filter((ticket) => !['closed', 'won', 'lost'].includes(ticket.status)).length
-    const contactedTickets = tickets.filter((ticket) => ['contacted', 'follow_up', 'won'].includes(ticket.status)).length
-    const averageScore = tickets.length
-      ? tickets.reduce((sum, ticket) => sum + (ticket.lead?.lead_score ?? 0), 0) / tickets.length
-      : 0
+    return {
+      pendingTickets: ticketGroups.pending.length,
+      followUpTickets: ticketGroups.follow_up.length,
+      closedTickets: ticketGroups.closed.length,
+    }
+  }, [ticketGroups])
 
-    return { openTickets, contactedTickets, averageScore }
-  }, [tickets])
+  const activeTabLabel = TICKET_TABS.find((tab) => tab.value === activeTicketTab)?.label ?? 'Tickets'
+  const ticketAreaLoading = loading || tabTransitioning
 
   return (
     <main className="employee-dashboard page-transition page-transition-dashboard" data-theme={theme}>
@@ -294,16 +424,32 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
             <strong>{currentUser.name}</strong>
             <span>{currentUser.email}</span>
           </div>
-          <button type="button" onClick={onToggleTheme}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
-          <button type="button" onClick={onSignOut}>Logout</button>
+          <button
+            type="button"
+            className="theme-toggle theme-toggle-compact"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span className="theme-toggle-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="icon-action-button"
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogoutIcon />
+          </button>
         </div>
       </header>
 
       <section className="employee-summary-grid">
         <EmployeeStat label="Assigned Tickets" value={formatNumber(tickets.length)} />
-        <EmployeeStat label="Open Visits" value={formatNumber(stats.openTickets)} />
-        <EmployeeStat label="Contacted" value={formatNumber(stats.contactedTickets)} />
-        <EmployeeStat label="Average Score" value={formatNumber(stats.averageScore, 1)} />
+        <EmployeeStat label="Pending" value={formatNumber(stats.pendingTickets)} />
+        <EmployeeStat label="Follow Up" value={formatNumber(stats.followUpTickets)} />
+        <EmployeeStat label="Closed" value={formatNumber(stats.closedTickets)} />
       </section>
 
       {error ? <p className="employee-error">{error}</p> : null}
@@ -320,36 +466,64 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
             </button>
           </div>
 
-          {loading ? (
-            <div className="employee-empty-state">
-              <p>Loading assigned tickets...</p>
-            </div>
-          ) : null}
+          <div className="employee-ticket-tabs" role="tablist" aria-label="Ticket status tabs">
+            {TICKET_TABS.map((tab) => (
+              <button
+                type="button"
+                key={tab.value}
+                role="tab"
+                aria-selected={activeTicketTab === tab.value}
+                className={`employee-ticket-tab ${activeTicketTab === tab.value ? 'employee-ticket-tab-active' : ''}`}
+                onClick={() => handleTicketTabChange(tab.value)}
+                disabled={ticketAreaLoading}
+              >
+                <span>{tab.label}</span>
+                <strong>{formatNumber(ticketGroups[tab.value]?.length ?? 0)}</strong>
+              </button>
+            ))}
+          </div>
 
-          {!loading && !tickets.length ? (
+          {!ticketAreaLoading && !tickets.length ? (
             <div className="employee-empty-state">
               <p>No assigned tickets yet.</p>
               <span>Ask an admin to assign no-email leads to this ground employee account.</span>
             </div>
           ) : null}
 
-          <div className="employee-ticket-stack">
-            {tickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                isActive={ticket.id === activeTicketId}
-                onSelect={setActiveTicketId}
-              />
+          {!ticketAreaLoading && tickets.length > 0 && !visibleTickets.length ? (
+            <div className="employee-empty-state">
+              <p>No {activeTabLabel.toLowerCase()} tickets.</p>
+              <span>Switch tabs to review other assigned client visits.</span>
+            </div>
+          ) : null}
+
+          <div
+            key={ticketAreaLoading ? `loading-${activeTicketTab}` : renderedTicketTab}
+            className={`employee-ticket-stack ${ticketAreaLoading ? 'employee-ticket-stack-loading' : 'employee-ticket-stack-ready'}`}
+          >
+            {ticketAreaLoading ? (
+              <EmployeeTicketsLoadingState label={activeTabLabel} />
+            ) : visibleTickets.map((ticket, index) => (
+                <TicketCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  index={index}
+                  isActive={ticket.id === selectedTicketId}
+                  onSelect={setActiveTicketId}
+                />
             ))}
           </div>
         </section>
 
-        <TicketDetails
-          key={activeTicket ? `${activeTicket.id}-${activeTicket.status}` : 'no-ticket'}
-          ticket={activeTicket}
-          onUpdated={loadTickets}
-        />
+        {ticketAreaLoading ? (
+          <EmployeeDetailsLoadingState label={activeTabLabel} />
+        ) : (
+          <TicketDetails
+            key={activeTicket ? `${activeTicket.id}-${activeTicket.status}-${activeTicket.updated_at}` : 'no-ticket'}
+            ticket={activeTicket}
+            onUpdated={loadTickets}
+          />
+        )}
       </div>
     </main>
   )

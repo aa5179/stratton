@@ -1,5 +1,6 @@
 import { Autocomplete } from '@react-google-maps/api'
 import { useState } from 'react'
+import { LogoutIcon } from './HeaderActionIcons.jsx'
 
 function TopBar({
   isLoaded,
@@ -78,9 +79,11 @@ function TopBar({
             <button
               type="button"
               onClick={onSignOut}
-              className="ghost-action rounded-md px-2.5 py-1 text-xs font-semibold transition"
+              className="icon-action-button ghost-action"
+              aria-label="Logout"
+              title="Logout"
             >
-              Logout
+              <LogoutIcon />
             </button>
           </div>
         </div>
@@ -150,12 +153,12 @@ function TopBar({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="topbar-command-grid grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={onRefresh}
             disabled={isRefreshing || !selectedLocation}
-            className="min-h-11 rounded-lg bg-cyan-300 px-3 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="topbar-command-button min-h-11 rounded-lg bg-cyan-300 px-3 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
@@ -163,7 +166,7 @@ function TopBar({
             type="button"
             onClick={onOpenLeads}
             disabled={isLeadsLoading || isRefreshing || !selectedLocation}
-            className="min-h-11 rounded-lg bg-emerald-300 px-3 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="topbar-command-button min-h-11 rounded-lg bg-emerald-300 px-3 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLeadsLoading ? 'Scanning...' : 'Open Leads'}
           </button>
@@ -171,7 +174,7 @@ function TopBar({
             type="button"
             onClick={onOpenStateLeads}
             disabled={isStateLeadsLoading || !selectedLocation?.state}
-            className={`min-h-11 rounded-lg px-3 py-3 text-sm font-semibold text-slate-950 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`topbar-command-button topbar-command-secondary min-h-11 rounded-lg px-3 py-3 text-sm font-semibold text-slate-950 transition disabled:cursor-not-allowed disabled:opacity-60 ${
               isStateLeadsOpen
                 ? 'bg-amber-200 hover:bg-amber-100'
                 : 'bg-slate-100 hover:bg-white'
@@ -184,7 +187,7 @@ function TopBar({
         <button
           type="button"
           onClick={() => onThermalViewChange(!thermalViewEnabled)}
-          className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`thermal-toggle-button flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
             thermalViewEnabled
               ? 'border-amber-300 bg-amber-300 text-slate-950 hover:bg-amber-200'
               : 'border-white/10 bg-white/8 text-slate-100 hover:bg-white/14'
@@ -206,7 +209,7 @@ function TopBar({
           <button
             type="button"
             onClick={onOpenLeadsPage}
-            className="min-h-11 w-full rounded-lg border border-cyan-200/35 bg-cyan-300/12 px-3 py-3 text-left text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/20"
+            className="open-crm-button min-h-11 w-full rounded-lg border border-cyan-200/35 bg-cyan-300/12 px-3 py-3 text-left text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/20"
           >
             Open Leads CRM
           </button>
