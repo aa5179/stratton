@@ -1,8 +1,20 @@
 import { isSupabaseConfigured, supabase } from './supabaseClient.js'
-import { saveEnrichedLeadContact } from './dashboardService.js'
+import { saveEnrichedLeadContact, sendLeadEmailCampaign } from './dashboardService.js'
 import { enrichLeadContact } from './enrichmentService.js'
 
 const OPEN_TICKET_STATUSES = ['pending', 'visited', 'contacted', 'follow_up']
+const AUTO_MAIL_SKIP_STATUSES = new Set([
+  'email_sent',
+  'do_not_contact',
+  'not_interested',
+  'closed',
+  'won',
+  'lost',
+])
+const AUTO_MAIL_TEST_RECIPIENTS = [
+  'adityavbs22@gmail.com',
+  'aa5179@srmist.edu.in',
+]
 
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured || !supabase) {
@@ -292,7 +304,13 @@ async function autoFindContactForLead({ lead, leadId, ticketId, currentUser }) {
   }
 }
 
-export async function saveLeadBatch({ leads, currentUser, source = 'google_solar_scan' }) {
+export async function saveLeadBatch({
+  leads,
+  currentUser,
+  source = 'google_solar_scan',
+  autoSendHotEmails = false,
+  autoSendHotEmailTestMode = false,
+}) {
   assertSupabaseConfigured()
 
   if (currentUser?.role !== 'admin') {
@@ -308,9 +326,18 @@ export async function saveLeadBatch({ leads, currentUser, source = 'google_solar
     emailsFound: 0,
     phonesFound: 0,
     contactFailed: 0,
+    hotMailRequested: 0,
+    hotMailSent: 0,
+    hotMailQueued: 0,
+    hotMailFailed: 0,
+    hotMailSkipped: 0,
+    hotMailTestMode: false,
+    hotMailTestRecipients: [],
+    hotMailError: '',
     failed: 0,
     errors: [],
   }
+  const hotLeadIdsForMail = []
 
   for (const lead of leads) {
     try {
@@ -361,12 +388,46 @@ export async function saveLeadBatch({ leads, currentUser, source = 'google_solar
       if (contactResult.foundPhone) {
         summary.phonesFound += 1
       }
+
+      const hasEmailForOutreach = Boolean(cleanText(lead.email) || contactResult.foundEmail)
+      const canAutoMail = lead.priority === 'Hot'
+        && (autoSendHotEmailTestMode || hasEmailForOutreach)
+        && (autoSendHotEmailTestMode || !AUTO_MAIL_SKIP_STATUSES.has(savedLead.status))
+
+      if (canAutoMail) {
+        hotLeadIdsForMail.push(savedLead.leadId)
+      }
     } catch (error) {
       summary.failed += 1
       summary.errors.push({
         address: lead.address,
         message: error.message || 'Save failed.',
       })
+    }
+  }
+
+  const uniqueHotLeadIds = [...new Set(hotLeadIdsForMail)]
+
+  if ((autoSendHotEmails || autoSendHotEmailTestMode) && uniqueHotLeadIds.length) {
+    summary.hotMailRequested = uniqueHotLeadIds.length
+    summary.hotMailTestMode = autoSendHotEmailTestMode
+    summary.hotMailTestRecipients = autoSendHotEmailTestMode ? AUTO_MAIL_TEST_RECIPIENTS : []
+
+    try {
+      const mailSummary = await sendLeadEmailCampaign({
+        senderEmail: currentUser.email,
+        leadIds: uniqueHotLeadIds,
+        testRecipients: autoSendHotEmailTestMode ? AUTO_MAIL_TEST_RECIPIENTS : [],
+      })
+
+      summary.hotMailSent = mailSummary.sent ?? 0
+      summary.hotMailQueued = mailSummary.queued ?? 0
+      summary.hotMailFailed = mailSummary.failed ?? 0
+      summary.hotMailSkipped = mailSummary.skipped ?? 0
+      summary.hotMailTestRecipients = mailSummary.testRecipients ?? []
+    } catch (error) {
+      summary.hotMailFailed = uniqueHotLeadIds.length
+      summary.hotMailError = error.message || 'Unable to send hot lead emails.'
     }
   }
 

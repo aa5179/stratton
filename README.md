@@ -8,6 +8,7 @@ The app uses React + Vite for the frontend, Express for protected API routes, Go
 
 - Full-screen satellite map with building selection, adjustable radius, and solar panel placement from Google Solar data.
 - Nearby and state lead discovery using real Google candidate buildings.
+- Persistent browser caching and server scan caching to avoid repeated Google API calls for already searched areas.
 - Lead scoring from solar capacity, savings, ROI, property fit, and contactability.
 - Supabase login with `admin` and `ground_employee` roles.
 - Admin CRM tabs for High Score Leads, No-Email Queue, and Low Score Leads.
@@ -16,7 +17,8 @@ The app uses React + Vite for the frontend, Express for protected API routes, Go
 - Field assignment workflow for leads with no email or phone.
 - Contact-ready status for phone-only leads.
 - Duplicate lead protection by Google Solar building name and normalized address/location.
-- Professional property-specific email generation and delivery through Resend.
+- Professional property-specific email generation and delivery through Gmail SMTP or Resend.
+- Optional automatic Hot lead outreach when saved leads have an email address.
 - Suppression list to prevent sending to blocked/unsubscribed/bounced emails.
 
 ## Tech Stack
@@ -26,7 +28,7 @@ The app uses React + Vite for the frontend, Express for protected API routes, Go
 - Database/Auth: Supabase
 - Maps/Solar/Places: Google Maps Platform
 - Contact enrichment: Google Places, public website scraping, Hunter, People Data Labs, or custom webhook
-- Email delivery: Resend
+- Email delivery: Gmail SMTP for demos, Resend for production domains
 
 ## Environment Variables
 
@@ -47,12 +49,19 @@ HUNTER_API_KEY=your_hunter_key
 
 RESEND_API_KEY=your_resend_key
 RESEND_FROM_EMAIL=onboarding@resend.dev
+
+EMAIL_PROVIDER=gmail
+GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_16_character_google_app_password
 ```
 
 Notes:
 
 - `VITE_GOOGLE_MAPS_API_KEY` is used in the browser for Maps and Places autocomplete.
 - `VITE_GOOGLE_SOLAR_API_KEY` is used by the backend Solar API route.
+- `EMAIL_PROVIDER=gmail` sends through Gmail SMTP for demos and early testing.
+- `GMAIL_APP_PASSWORD` must be a Google App Password, not your normal Gmail password.
+- `EMAIL_PROVIDER=resend` sends through Resend after you verify a production domain.
 - `RESEND_FROM_EMAIL` is optional. During Resend test mode, `onboarding@resend.dev` works only for your verified test recipient. For production, verify a domain in Resend and use something like `sales@yourdomain.com`.
 - Never commit real API keys.
 
@@ -67,6 +76,7 @@ database/002_status_and_campaign_migration.sql
 database/004_contact_ready_status.sql
 database/005_prevent_duplicate_leads.sql
 database/006_outbound_email_message_fields.sql
+database/007_employee_outcome_statuses.sql
 ```
 
 `database/003_reset_crm_data_keep_users.sql` is optional and destructive for CRM data. It deletes CRM records but keeps auth users/profiles.
@@ -122,14 +132,23 @@ npm run lint     # ESLint
 5. The app saves leads and solar assessments to Supabase.
 6. The app automatically tries to find contact details.
 7. Leads with email become email-ready.
-8. Leads with only phone become contact-ready.
-9. Leads with no email or phone stay in the field assignment queue.
+8. If the admin enables `Auto-send Hot emails`, Hot leads with an email are sent the property-specific outreach email during save.
+9. Leads with only phone become contact-ready.
+10. Leads with no email or phone stay in the field assignment queue.
 
 Duplicate protection:
 
 - If Google Solar returns the same building name, the app updates the existing lead.
 - If no building name exists, the app matches normalized address + rounded coordinates.
 - Supabase also has a unique index for normalized address/location.
+
+Scan caching:
+
+- Selected building lookups are cached in the browser for 24 hours.
+- Nearby area and state lead scans are cached in the browser for 7 days.
+- The Express server also caches nearby and state scan results for 24 hours while the server is running.
+- Nearby scans use a rounded area grid, so small clicks inside the same searched area reuse cached results instead of spending new Google Solar calls.
+- The right lead panel shows `Loaded From: Cache` when a scan result came from cache.
 
 ## Contact Discovery
 
@@ -147,6 +166,15 @@ See `docs/CONTACT_DISCOVERY.md` for more detail.
 
 Admin Leads page includes a `Send mails from` input and `Send Mails To All` buttons in every tab.
 
+When an admin saves a scanned area, the `Auto-send Hot emails` toggle can send outreach to Hot leads that already have an email or receive one from automatic enrichment. This toggle is off by default. It uses the same backend route as the manual buttons, so suppression and status protections still apply.
+
+For testing, enable `Test auto-send` before saving scanned leads. The app generates Hot lead emails from the scanned area but sends test copies only to:
+
+- `adityavbs22@gmail.com`
+- `aa5179@srmist.edu.in`
+
+Test auto-send does not mark the real lead as `email_sent`.
+
 For each eligible lead, the backend generates a professional email containing:
 
 - Property address
@@ -162,13 +190,27 @@ The send flow skips:
 
 - Leads without email
 - Suppressed emails
-- `do_not_contact` leads
+- `email_sent`, `do_not_contact`, `not_interested`, `closed`, `won`, and `lost` leads
 
 Email records are stored in `email_campaigns` and `email_events`, including sender, recipient, subject, text body, HTML body, provider, provider message id, and send status.
 
+### Gmail Demo Mode
+
+Use Gmail when you do not have a domain yet:
+
+```bash
+EMAIL_PROVIDER=gmail
+GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_16_character_google_app_password
+```
+
+Gmail sends from the authenticated Gmail account. The dashboard sender email is still used in the email signature and `reply-to`, but Gmail may show the actual sender as `GMAIL_USER`.
+
+This is useful for demos and testing. For production or high-volume outreach, use Resend with a verified client domain.
+
 ### Resend Test Mode
 
-If your Resend account is not domain-verified, Resend only allows sending to your account test email. The temporary `Send Test Mail` button sends one generated lead email to the allowed test recipient.
+If your Resend account is not domain-verified, Resend only allows sending to your account test email. For local testing without a domain, prefer Gmail demo mode and the scan page `Test auto-send` toggle.
 
 For production sending:
 

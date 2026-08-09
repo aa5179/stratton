@@ -269,7 +269,12 @@ export async function addSuppressionEntry({ email, reason = 'manual', note = '' 
   }
 }
 
-export async function sendLeadEmailCampaign({ senderEmail, leadIds, testRecipient = '' }) {
+export async function sendLeadEmailCampaign({
+  senderEmail,
+  leadIds,
+  testRecipient = '',
+  testRecipients = [],
+}) {
   if (!isValidEmail(senderEmail)) {
     throw new Error('Enter a valid sender email address.')
   }
@@ -287,6 +292,7 @@ export async function sendLeadEmailCampaign({ senderEmail, leadIds, testRecipien
       senderEmail,
       leadIds,
       testRecipient,
+      testRecipients,
     }),
   })
   const payload = await response.json().catch(() => null)

@@ -6,7 +6,7 @@ import {
   sendLeadEmailCampaign,
 } from '../services/dashboardService.js'
 import { enrichLeadContact } from '../services/enrichmentService.js'
-import { formatCurrency, formatNumber } from '../utils/solarInsights.js'
+import { formatCurrency, formatNumber, formatPercentage } from '../utils/solarInsights.js'
 
 const STATUS_LABELS = {
   new: 'New',
@@ -27,10 +27,29 @@ const STATUS_LABELS = {
   do_not_contact: 'Do Not Contact',
 }
 
-const TEMP_TEST_RECIPIENT = 'aroraaditya358@gmail.com'
-
 function formatAddress(lead) {
   return [lead.address, lead.city, lead.state, lead.zip].filter(Boolean).join(', ')
+}
+
+function toNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function formatValue(value, formatter = (item) => item) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+
+  return formatter(value)
+}
+
+function getOpenTicket(lead) {
+  return lead.tickets?.find((ticket) => !['closed', 'won', 'lost'].includes(ticket.status)) ?? lead.tickets?.[0] ?? null
+}
+
+function getLatestEmailEvent(lead) {
+  return lead.emailEvents?.[0] ?? null
 }
 
 function downloadCsv(filename, rows) {
@@ -77,6 +96,70 @@ function MiniStat({ label, value, hint }) {
   )
 }
 
+function DetailStat({ label, value }) {
+  return (
+    <div className="admin-crm-detail-stat">
+      <p>{label}</p>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function LeadDetailPanel({ lead }) {
+  const assessment = lead.assessment ?? {}
+  const ticket = getOpenTicket(lead)
+  const emailEvent = getLatestEmailEvent(lead)
+  const lat = toNumber(lead.lat)
+  const lng = toNumber(lead.lng)
+
+  return (
+    <div className="admin-crm-lead-detail">
+      <div className="admin-crm-detail-grid">
+        <DetailStat label="Owner" value={lead.owner_name || lead.parcel?.owner_name || 'Owner needed'} />
+        <DetailStat label="Business" value={lead.business_name || '-'} />
+        <DetailStat label="Email" value={lead.email || 'Missing'} />
+        <DetailStat label="Phone" value={lead.phone || 'Missing'} />
+        <DetailStat label="Property Type" value={lead.property_type || lead.parcel?.property_type || '-'} />
+        <DetailStat label="Source" value={lead.source || '-'} />
+      </div>
+
+      <div className="admin-crm-detail-grid admin-crm-detail-grid-solar">
+        <DetailStat label="Max Panels" value={formatValue(toNumber(assessment.max_panels), formatNumber)} />
+        <DetailStat label="Selected Panels" value={formatValue(toNumber(assessment.selected_panels), formatNumber)} />
+        <DetailStat label="Annual Energy" value={`${formatValue(toNumber(assessment.annual_energy_kwh), formatNumber)} kWh`} />
+        <DetailStat label="Annual Savings" value={formatValue(toNumber(assessment.annual_savings), formatCurrency)} />
+        <DetailStat label="Install Cost" value={formatValue(toNumber(assessment.estimated_install_cost), formatCurrency)} />
+        <DetailStat label="ROI" value={formatValue(toNumber(assessment.roi), formatPercentage)} />
+      </div>
+
+      <div className="admin-crm-detail-footer">
+        <span>Ticket: {ticket ? STATUS_LABELS[ticket.status] ?? ticket.status : 'No open ticket'}</span>
+        <span>Email: {emailEvent ? STATUS_LABELS[emailEvent.status] ?? emailEvent.status : 'No email event'}</span>
+        <span>Location: {lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : '-'}</span>
+        <span>Created: {lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-US') : '-'}</span>
+      </div>
+    </div>
+  )
+}
+
+function LeadRow({ lead, expanded, onToggle }) {
+  return (
+    <div className={`admin-crm-lead-row ${expanded ? 'admin-crm-lead-row-expanded' : ''}`}>
+      <button type="button" className="admin-crm-lead-main" onClick={onToggle}>
+        <div>
+          <p>{formatNumber(toNumber(lead.lead_score) ?? 0)} - {lead.priority} - {STATUS_LABELS[lead.status] ?? lead.status}</p>
+          <strong>{formatAddress(lead)}</strong>
+          <span>
+            {lead.email || 'email missing'} - {lead.phone || 'phone missing'} - {lead.owner_name || lead.parcel?.owner_name || 'owner needed'}
+          </span>
+        </div>
+        <span className="admin-crm-expand-indicator">{expanded ? 'Hide' : 'Open'}</span>
+      </button>
+      {expanded ? <LeadDetailPanel lead={lead} /> : null}
+    </div>
+  )
+}
+
 function AdminCrmPanel({
   currentUser,
   senderEmail,
@@ -94,10 +177,10 @@ function AdminCrmPanel({
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [filter, setFilter] = useState('all')
+  const [expandedLeadId, setExpandedLeadId] = useState(null)
   const [bulkFinding, setBulkFinding] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
   const [sendingEmails, setSendingEmails] = useState(false)
-  const [sendingTestEmail, setSendingTestEmail] = useState(false)
   const [suppressionEmail, setSuppressionEmail] = useState('')
 
   const loadDashboard = useCallback(async () => {
@@ -279,38 +362,6 @@ function AdminCrmPanel({
     }
   }
 
-  const sendTestMail = async () => {
-    const testLead = scoreFilteredLeads.find((lead) => lead.status !== 'do_not_contact')
-
-    if (!testLead) {
-      setMessage('No lead is available in this tab for a test email.')
-      return
-    }
-
-    setSendingTestEmail(true)
-    setMessage('')
-    setError('')
-
-    try {
-      const summary = await sendLeadEmailCampaign({
-        senderEmail,
-        leadIds: [testLead.id],
-        testRecipient: TEMP_TEST_RECIPIENT,
-      })
-      const deliveryText = summary.providerConfigured
-        ? `${formatNumber(summary.sent)} test email sent, ${formatNumber(summary.failed)} failed`
-        : `${formatNumber(summary.queued)} test email queued because no email provider is configured`
-      const providerError = summary.errors?.[0]?.message ? ` Provider message: ${summary.errors[0].message}` : ''
-
-      setMessage(`${deliveryText} to ${TEMP_TEST_RECIPIENT}.${providerError}`)
-      await loadDashboard()
-    } catch (sendError) {
-      setError(sendError.message || 'Unable to send the test email.')
-    } finally {
-      setSendingTestEmail(false)
-    }
-  }
-
   const submitSuppression = async (event) => {
     event.preventDefault()
     setMessage('')
@@ -373,9 +424,6 @@ function AdminCrmPanel({
         <button type="button" onClick={sendMailsToAllLeads} disabled={sendingEmails || !senderEmail}>
           {sendingEmails ? 'Sending...' : 'Send Mails To All'}
         </button>
-        <button type="button" onClick={sendTestMail} disabled={sendingTestEmail || !senderEmail}>
-          {sendingTestEmail ? 'Testing...' : 'Send Test Mail'}
-        </button>
         {showBulkContactFinder ? (
           <button type="button" onClick={findContactsForVisibleLeads} disabled={bulkFinding}>
             {bulkFinding ? 'Finding...' : 'Find Contacts For All'}
@@ -391,15 +439,12 @@ function AdminCrmPanel({
 
       <div className="admin-crm-list">
         {filteredLeads.slice(0, listLimit).map((lead) => (
-          <div key={lead.id} className="admin-crm-lead-row">
-            <div>
-              <p>{formatNumber(lead.lead_score)} · {lead.priority} · {STATUS_LABELS[lead.status] ?? lead.status}</p>
-              <strong>{formatAddress(lead)}</strong>
-              <span>
-                {lead.email || 'email missing'} · {lead.phone || 'phone missing'} · {lead.owner_name || lead.parcel?.owner_name || 'owner needed'}
-              </span>
-            </div>
-          </div>
+          <LeadRow
+            key={lead.id}
+            lead={lead}
+            expanded={expandedLeadId === lead.id}
+            onToggle={() => setExpandedLeadId((currentId) => (currentId === lead.id ? null : lead.id))}
+          />
         ))}
       </div>
 

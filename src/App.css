@@ -916,19 +916,35 @@
 }
 
 .admin-crm-lead-row {
-  display: flex;
-  gap: 0.6rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
   background: #f8fafc;
-  padding: 0.65rem;
+  overflow: hidden;
 }
 
-.admin-crm-lead-row input {
-  margin-top: 0.2rem;
+.admin-crm-lead-row-expanded {
+  border-color: #67e8f9;
+  box-shadow: 0 14px 34px rgba(8, 47, 73, 0.12);
 }
 
-.admin-crm-lead-row div {
+.admin-crm-lead-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-crm-lead-main:hover {
+  background: #ecfeff;
+}
+
+.admin-crm-lead-main div {
   min-width: 0;
 }
 
@@ -958,6 +974,74 @@
   color: #475569;
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+.admin-crm-expand-indicator {
+  flex: 0 0 auto;
+  border: 1px solid #bae6fd;
+  border-radius: 0.4rem;
+  background: #e0f2fe;
+  padding: 0.35rem 0.55rem;
+  color: #075985;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.admin-crm-lead-detail {
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.75rem;
+}
+
+.admin-crm-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.admin-crm-detail-grid-solar {
+  margin-top: 0.55rem;
+}
+
+.admin-crm-detail-stat {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.45rem;
+  background: #f8fafc;
+  padding: 0.55rem;
+}
+
+.admin-crm-detail-stat p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-crm-detail-stat strong {
+  display: block;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.admin-crm-detail-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.admin-crm-detail-footer span {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.38rem;
+  background: #f1f5f9;
+  padding: 0.3rem 0.48rem;
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 .admin-crm-campaign {
@@ -1526,6 +1610,10 @@
 @media (max-width: 640px) {
   .map-workspace {
     min-height: 100vh;
+  }
+
+  .admin-crm-detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .admin-leads-topbar,

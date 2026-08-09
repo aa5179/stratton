@@ -4,7 +4,10 @@ const DEFAULT_REQUIRED_QUALITY = 'BASE'
 const METERS_PER_LATITUDE_DEGREE = 111_320
 const EARTH_RADIUS_METERS = 6_371_000
 const SOLAR_CACHE_TTL_MS = 30 * 60 * 1000
+const SOLAR_SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const solarPayloadCache = new Map()
+const solarLeadScanCache = new Map()
+const solarStateLeadScanCache = new Map()
 const PLACES_FIELD_MASK = [
   'places.id',
   'places.displayName',
@@ -118,6 +121,42 @@ function buildSolarUrl({ lat, lng }) {
 
 function getSolarCacheKey({ lat, lng }) {
   return `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`
+}
+
+function getAreaCacheCell({ lat, lng, radiusMeters }) {
+  const cellMeters = Math.max(100, Math.min(500, Math.round(radiusMeters / 3)))
+  const lngMeters = Math.max(1, METERS_PER_LATITUDE_DEGREE * Math.cos((Number(lat) * Math.PI) / 180))
+  const latStep = cellMeters / METERS_PER_LATITUDE_DEGREE
+  const lngStep = cellMeters / lngMeters
+
+  return [
+    Math.round(Number(lat) / latStep),
+    Math.round(Number(lng) / lngStep),
+    cellMeters,
+  ].join(',')
+}
+
+async function getCachedScanResult(cache, cacheKey, producer) {
+  const cached = cache.get(cacheKey)
+
+  if (cached && cached.expiresAt > Date.now()) {
+    const payload = await cached.promise
+    return { ...payload, cacheHit: true }
+  }
+
+  const promise = producer()
+  cache.set(cacheKey, {
+    expiresAt: Date.now() + SOLAR_SCAN_CACHE_TTL_MS,
+    promise,
+  })
+
+  try {
+    const payload = await promise
+    return { ...payload, cacheHit: false }
+  } catch (error) {
+    cache.delete(cacheKey)
+    throw error
+  }
 }
 
 async function requestSolarPayload({ lat, lng }) {
@@ -357,100 +396,113 @@ export async function getSolarInsights({ lat, lng }) {
 export async function getSolarLeadsNear({ lat, lng, radiusMeters = 1000, maxSamples = 24 }) {
   const scanRadius = Math.min(Math.max(Number(radiusMeters) || 1000, 100), 2000)
   const sampleLimit = Math.min(Math.max(Number(maxSamples) || 24, 1), 36)
-  const scanPoints = buildScanPoints({ lat, lng, radiusMeters: scanRadius }).slice(0, sampleLimit)
-  const buildings = new Map()
-  const errors = []
+  const cacheKey = [
+    getAreaCacheCell({ lat, lng, radiusMeters: scanRadius }),
+    Math.round(scanRadius),
+    Math.round(sampleLimit),
+  ].join(',')
 
-  await mapWithConcurrency(scanPoints, 4, async (point, index) => {
-    try {
-      const payload = await requestSolarPayload(point)
-      const formatted = formatSolarInsights(payload)
-      const center = getLatLng(formatted.center)
-      const distanceMeters = getDistanceMeters({ lat, lng }, center)
+  return getCachedScanResult(solarLeadScanCache, cacheKey, async () => {
+    const scanPoints = buildScanPoints({ lat, lng, radiusMeters: scanRadius }).slice(0, sampleLimit)
+    const buildings = new Map()
+    const errors = []
 
-      if (!center || distanceMeters === null || distanceMeters > scanRadius) {
-        return
-      }
+    await mapWithConcurrency(scanPoints, 4, async (point, index) => {
+      try {
+        const payload = await requestSolarPayload(point)
+        const formatted = formatSolarInsights(payload)
+        const center = getLatLng(formatted.center)
+        const distanceMeters = getDistanceMeters({ lat, lng }, center)
 
-      const key = formatted.buildingName
-        ?? `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`
+        if (!center || distanceMeters === null || distanceMeters > scanRadius) {
+          return
+        }
 
-      if (!buildings.has(key)) {
-        buildings.set(key, {
-          ...formatted,
+        const key = formatted.buildingName
+          ?? `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`
+
+        if (!buildings.has(key)) {
+          buildings.set(key, {
+            ...formatted,
+            sampleIndex: index,
+            sampledFrom: point,
+            distanceMeters,
+          })
+        }
+      } catch (error) {
+        errors.push({
           sampleIndex: index,
-          sampledFrom: point,
-          distanceMeters,
+          message: error.message,
+          code: error.code,
         })
       }
-    } catch (error) {
-      errors.push({
-        sampleIndex: index,
-        message: error.message,
-        code: error.code,
-      })
+    })
+
+    return {
+      radiusMeters: scanRadius,
+      sampleCount: scanPoints.length,
+      discoveredCount: buildings.size,
+      leads: [...buildings.values()],
+      errors,
     }
   })
-
-  return {
-    radiusMeters: scanRadius,
-    sampleCount: scanPoints.length,
-    discoveredCount: buildings.size,
-    leads: [...buildings.values()],
-    errors,
-  }
 }
 
 export async function getSolarStateLeads({ state, maxPlaces = 12 }) {
   const placeLimit = Math.min(Math.max(Number(maxPlaces) || 12, 1), 24)
-  const {
-    stateCode,
-    stateName,
-    places,
-    placeErrors,
-  } = await getPlacesForState({ state, maxPlaces: placeLimit })
-  const buildings = new Map()
-  const errors = [...placeErrors]
+  const stateCode = String(state || '').trim().toUpperCase()
+  const cacheKey = `${stateCode},${Math.round(placeLimit)}`
 
-  await mapWithConcurrency(places, 3, async (place) => {
-    try {
-      const payload = await requestSolarPayload({
-        lat: place.location.lat,
-        lng: place.location.lng,
-      })
-      const formatted = formatSolarInsights(payload)
-      const center = getLatLng(formatted.center)
-      const key = formatted.buildingName
-        ?? place.id
-        ?? `${center?.lat?.toFixed(5)},${center?.lng?.toFixed(5)}`
+  return getCachedScanResult(solarStateLeadScanCache, cacheKey, async () => {
+    const {
+      stateCode: resolvedStateCode,
+      stateName,
+      places,
+      placeErrors,
+    } = await getPlacesForState({ state, maxPlaces: placeLimit })
+    const buildings = new Map()
+    const errors = [...placeErrors]
 
-      if (!buildings.has(key)) {
-        buildings.set(key, {
-          ...formatted,
+    await mapWithConcurrency(places, 3, async (place) => {
+      try {
+        const payload = await requestSolarPayload({
+          lat: place.location.lat,
+          lng: place.location.lng,
+        })
+        const formatted = formatSolarInsights(payload)
+        const center = getLatLng(formatted.center)
+        const key = formatted.buildingName
+          ?? place.id
+          ?? `${center?.lat?.toFixed(5)},${center?.lng?.toFixed(5)}`
+
+        if (!buildings.has(key)) {
+          buildings.set(key, {
+            ...formatted,
+            placeId: place.id,
+            placeName: place.name,
+            placeAddress: place.address,
+            placeTypes: place.types,
+            sourceQuery: place.sourceQuery,
+            sampledFrom: place.location,
+          })
+        }
+      } catch (error) {
+        errors.push({
           placeId: place.id,
           placeName: place.name,
-          placeAddress: place.address,
-          placeTypes: place.types,
-          sourceQuery: place.sourceQuery,
-          sampledFrom: place.location,
+          message: error.message,
+          code: error.code,
         })
       }
-    } catch (error) {
-      errors.push({
-        placeId: place.id,
-        placeName: place.name,
-        message: error.message,
-        code: error.code,
-      })
+    })
+
+    return {
+      stateCode: resolvedStateCode,
+      stateName,
+      placeCount: places.length,
+      discoveredCount: buildings.size,
+      leads: [...buildings.values()],
+      errors,
     }
   })
-
-  return {
-    stateCode,
-    stateName,
-    placeCount: places.length,
-    discoveredCount: buildings.size,
-    leads: [...buildings.values()],
-    errors,
-  }
 }

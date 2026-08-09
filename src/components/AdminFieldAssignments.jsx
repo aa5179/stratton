@@ -8,8 +8,6 @@ import {
 } from '../services/dashboardService.js'
 import { formatCurrency, formatNumber } from '../utils/solarInsights.js'
 
-const TEMP_TEST_RECIPIENT = 'aroraaditya358@gmail.com'
-
 function formatAddress(lead) {
   if (!lead) {
     return 'Lead details unavailable'
@@ -28,7 +26,6 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
   const [bulkFinding, setBulkFinding] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
   const [sendingEmails, setSendingEmails] = useState(false)
-  const [sendingTestEmail, setSendingTestEmail] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -251,38 +248,6 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
     }
   }
 
-  const sendTestMail = async () => {
-    const testLead = tickets.find((ticket) => ticket.lead?.id && ticket.lead?.status !== 'do_not_contact')?.lead
-
-    if (!testLead) {
-      setMessage('No lead is available in the no-email queue for a test email.')
-      return
-    }
-
-    setSendingTestEmail(true)
-    setMessage('')
-    setError('')
-
-    try {
-      const summary = await sendLeadEmailCampaign({
-        senderEmail,
-        leadIds: [testLead.id],
-        testRecipient: TEMP_TEST_RECIPIENT,
-      })
-      const deliveryText = summary.providerConfigured
-        ? `${formatNumber(summary.sent)} test email sent, ${formatNumber(summary.failed)} failed`
-        : `${formatNumber(summary.queued)} test email queued because no email provider is configured`
-      const providerError = summary.errors?.[0]?.message ? ` Provider message: ${summary.errors[0].message}` : ''
-
-      setMessage(`${deliveryText} to ${TEMP_TEST_RECIPIENT}.${providerError}`)
-      await loadQueue()
-    } catch (sendError) {
-      setError(sendError.message || 'Unable to send the test email.')
-    } finally {
-      setSendingTestEmail(false)
-    }
-  }
-
   return (
     <div className="admin-assignment-card">
       <div className="admin-assignment-header">
@@ -294,9 +259,6 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
         <div className="admin-assignment-header-actions">
           <button type="button" onClick={sendMailsToAll} disabled={sendingEmails || !senderEmail}>
             {sendingEmails ? 'Sending...' : 'Send Mails To All'}
-          </button>
-          <button type="button" onClick={sendTestMail} disabled={sendingTestEmail || !senderEmail || !tickets.length}>
-            {sendingTestEmail ? 'Testing...' : 'Send Test Mail'}
           </button>
           <button type="button" onClick={findContactsForAll} disabled={loading || bulkFinding || !tickets.length}>
             {bulkFinding ? 'Finding...' : 'Find Contacts For All'}

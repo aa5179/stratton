@@ -345,7 +345,7 @@ function EmployeeDashboard({ currentUser, onSignOut }) {
         </section>
 
         <TicketDetails
-          key={activeTicket?.id ?? 'no-ticket'}
+          key={activeTicket ? `${activeTicket.id}-${activeTicket.status}` : 'no-ticket'}
           ticket={activeTicket}
           onUpdated={loadTickets}
         />

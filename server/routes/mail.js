@@ -1,10 +1,23 @@
 import express from 'express'
+import nodemailer from 'nodemailer'
 import { createSupabaseUserClient } from '../services/supabaseServer.js'
 
 const router = express.Router()
 
 const VALID_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const TEMP_TEST_RECIPIENT = 'aroraaditya358@gmail.com'
+const TEMP_TEST_RECIPIENTS = [
+  'adityavbs22@gmail.com',
+  'aa5179@srmist.edu.in',
+]
+const ALLOWED_TEST_RECIPIENTS = new Set(TEMP_TEST_RECIPIENTS)
+const MAIL_SKIP_STATUSES = new Set([
+  'email_sent',
+  'do_not_contact',
+  'not_interested',
+  'closed',
+  'won',
+  'lost',
+])
 
 function cleanText(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -160,12 +173,84 @@ async function sendWithResend({ from, replyTo, to, subject, text, html }) {
   }
 }
 
+async function sendWithGmail({ replyTo, to, subject, text, html }) {
+  const user = cleanText(process.env.GMAIL_USER).toLowerCase()
+  const pass = cleanText(process.env.GMAIL_APP_PASSWORD)
+
+  if (!user || !pass) {
+    return {
+      configured: false,
+      status: 'queued',
+      provider: 'pending_gmail_config',
+      providerMessageId: null,
+      errorMessage: null,
+      fromEmail: user || null,
+    }
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user,
+      pass,
+    },
+  })
+
+  try {
+    const info = await transporter.sendMail({
+      from: user,
+      replyTo: replyTo || user,
+      to,
+      subject,
+      text,
+      html,
+    })
+
+    return {
+      configured: true,
+      status: 'sent',
+      provider: 'gmail',
+      providerMessageId: info.messageId ?? null,
+      errorMessage: null,
+      fromEmail: user,
+    }
+  } catch (error) {
+    return {
+      configured: true,
+      status: 'failed',
+      provider: 'gmail',
+      providerMessageId: null,
+      errorMessage: error.message || 'Gmail SMTP rejected the message.',
+      fromEmail: user,
+    }
+  }
+}
+
+async function sendEmail({ from, replyTo, to, subject, text, html }) {
+  if (process.env.EMAIL_PROVIDER === 'gmail') {
+    return sendWithGmail({ replyTo, to, subject, text, html })
+  }
+
+  return sendWithResend({ from, replyTo, to, subject, text, html })
+}
+
 router.post('/mail/send-leads', async (request, response, next) => {
   try {
-    const senderEmail = cleanText(request.body?.senderEmail).toLowerCase()
-    const testRecipient = request.body?.testRecipient === TEMP_TEST_RECIPIENT
-      ? TEMP_TEST_RECIPIENT
-      : ''
+    const requestedSenderEmail = cleanText(request.body?.senderEmail).toLowerCase()
+    const gmailUser = cleanText(process.env.GMAIL_USER).toLowerCase()
+    const senderEmail = isValidEmail(requestedSenderEmail)
+      ? requestedSenderEmail
+      : process.env.EMAIL_PROVIDER === 'gmail'
+        ? gmailUser
+        : ''
+    const requestedTestRecipients = Array.isArray(request.body?.testRecipients)
+      ? request.body.testRecipients
+      : request.body?.testRecipient
+        ? [request.body.testRecipient]
+        : []
+    const testRecipients = [...new Set(requestedTestRecipients
+      .map((recipient) => cleanText(recipient).toLowerCase())
+      .filter((recipient) => ALLOWED_TEST_RECIPIENTS.has(recipient)))]
     const leadIds = Array.isArray(request.body?.leadIds)
       ? [...new Set(request.body.leadIds.filter(Boolean))]
       : []
@@ -190,11 +275,11 @@ router.post('/mail/send-leads', async (request, response, next) => {
       throw leadError
     }
 
-    const testMode = Boolean(testRecipient)
+    const testMode = testRecipients.length > 0
     const validLeads = (leads ?? []).filter((lead) => (
       testMode
         ? lead.status !== 'do_not_contact'
-        : isValidEmail(lead.email) && lead.status !== 'do_not_contact'
+        : isValidEmail(lead.email) && !MAIL_SKIP_STATUSES.has(lead.status)
     ))
     const emails = [...new Set(validLeads.map((lead) => cleanText(lead.email).toLowerCase()).filter(Boolean))]
     const { data: suppressed, error: suppressionError } = !testMode && emails.length
@@ -210,7 +295,7 @@ router.post('/mail/send-leads', async (request, response, next) => {
 
     const suppressedEmails = new Set((suppressed ?? []).map((entry) => entry.email.toLowerCase()))
     const eligibleLeads = testMode
-      ? validLeads.slice(0, 1)
+      ? validLeads
       : validLeads.filter((lead) => !suppressedEmails.has(lead.email.toLowerCase()))
 
     if (!eligibleLeads.length) {
@@ -238,7 +323,9 @@ router.post('/mail/send-leads', async (request, response, next) => {
 
       return map
     }, {})
-    const providerConfigured = Boolean(process.env.RESEND_API_KEY)
+    const providerConfigured = process.env.EMAIL_PROVIDER === 'gmail'
+      ? Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
+      : Boolean(process.env.RESEND_API_KEY)
     const { data: campaign, error: campaignError } = await supabase
       .from('email_campaigns')
       .insert({
@@ -263,7 +350,7 @@ router.post('/mail/send-leads', async (request, response, next) => {
       failed: 0,
       skipped: leadIds.length - eligibleLeads.length,
       providerConfigured,
-      testRecipient: testRecipient || null,
+      testRecipients,
       errors: [],
     }
     const eventRows = []
@@ -278,45 +365,51 @@ router.post('/mail/send-leads', async (request, response, next) => {
       const actualFromEmail = testMode
         ? (process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev')
         : senderEmail
-      const delivery = await sendWithResend({
-        from: actualFromEmail,
-        replyTo: senderEmail,
-        to: testRecipient || lead.email,
-        subject: testMode ? `[TEST] ${message.subject}` : message.subject,
-        text: message.text,
-        html: message.html,
-      })
+      const recipients = testMode ? testRecipients : [lead.email]
 
-      if (delivery.status === 'sent') {
-        summary.sent += 1
-        sentLeadIds.push(lead.id)
-      } else if (delivery.status === 'queued') {
-        summary.queued += 1
-      } else {
-        summary.failed += 1
-        summary.errors.push({
-          leadId: lead.id,
-          to: testRecipient || lead.email,
-          message: delivery.errorMessage,
+      for (const recipient of recipients) {
+        const delivery = await sendEmail({
+          from: actualFromEmail,
+          replyTo: senderEmail,
+          to: recipient,
+          subject: testMode ? `[TEST] ${message.subject}` : message.subject,
+          text: message.text,
+          html: message.html,
+        })
+
+        if (delivery.status === 'sent') {
+          summary.sent += 1
+          if (!testMode) {
+            sentLeadIds.push(lead.id)
+          }
+        } else if (delivery.status === 'queued') {
+          summary.queued += 1
+        } else {
+          summary.failed += 1
+          summary.errors.push({
+            leadId: lead.id,
+            to: recipient,
+            message: delivery.errorMessage,
+          })
+        }
+
+        eventRows.push({
+          lead_id: lead.id,
+          campaign_id: campaign.id,
+          to_email: recipient.toLowerCase(),
+          from_email: delivery.fromEmail || actualFromEmail,
+          subject: testMode ? `[TEST] ${message.subject}` : message.subject,
+          body: testMode
+            ? `TEST EMAIL: This message was generated from lead ${lead.id} and delivered to ${recipient}.\n\n${message.text}`
+            : message.text,
+          html_body: message.html,
+          status: delivery.status,
+          provider: delivery.provider,
+          provider_message_id: delivery.providerMessageId,
+          error_message: delivery.errorMessage,
+          sent_at: delivery.status === 'sent' ? new Date().toISOString() : null,
         })
       }
-
-      eventRows.push({
-        lead_id: lead.id,
-        campaign_id: campaign.id,
-        to_email: (testRecipient || lead.email).toLowerCase(),
-        from_email: actualFromEmail,
-        subject: testMode ? `[TEST] ${message.subject}` : message.subject,
-        body: testMode
-          ? `TEST EMAIL: This message was generated from lead ${lead.id} and delivered to ${testRecipient}.\n\n${message.text}`
-          : message.text,
-        html_body: message.html,
-        status: delivery.status,
-        provider: delivery.provider,
-        provider_message_id: delivery.providerMessageId,
-        error_message: delivery.errorMessage,
-        sent_at: delivery.status === 'sent' ? new Date().toISOString() : null,
-      })
     }
 
     const { error: eventError } = await supabase

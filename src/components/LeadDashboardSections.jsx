@@ -41,7 +41,18 @@ function getPriorityClass(priority) {
   return 'border-slate-200 bg-slate-100 text-slate-700'
 }
 
-function SaveLeadsAction({ canSave, disabled, saving, result, onSave }) {
+function SaveLeadsAction({
+  canSave,
+  disabled,
+  saving,
+  result,
+  onSave,
+  autoSendHotEmails,
+  onAutoSendHotEmailsChange,
+  autoSendHotEmailTestMode,
+  onAutoSendHotEmailTestModeChange,
+}) {
+  const hotMailLabel = result?.hotMailTestMode ? 'hot test mails' : 'hot mails'
   const summaryText = result && !result.error
     ? [
         `${formatNumber(result.created)} created`,
@@ -51,7 +62,13 @@ function SaveLeadsAction({ canSave, disabled, saving, result, onSave }) {
         `${formatNumber(result.contactAttempts ?? 0)} contact checks`,
         `${formatNumber(result.emailsFound ?? 0)} emails found`,
         `${formatNumber(result.phonesFound ?? 0)} phones found`,
+        result.hotMailRequested ? `${formatNumber(result.hotMailSent ?? 0)} ${hotMailLabel} sent` : null,
+        result.hotMailQueued ? `${formatNumber(result.hotMailQueued)} ${hotMailLabel} queued` : null,
+        result.hotMailSkipped ? `${formatNumber(result.hotMailSkipped)} ${hotMailLabel} skipped` : null,
+        result.hotMailFailed ? `${formatNumber(result.hotMailFailed)} ${hotMailLabel} failed` : null,
+        result.hotMailTestRecipients?.length ? `test recipients: ${result.hotMailTestRecipients.join(', ')}` : null,
         result.contactFailed ? `${formatNumber(result.contactFailed)} contact checks failed` : null,
+        result.hotMailError ? `hot mail error: ${result.hotMailError}` : null,
       ].filter(Boolean).join(', ')
     : ''
 
@@ -81,6 +98,36 @@ function SaveLeadsAction({ canSave, disabled, saving, result, onSave }) {
           {saving ? 'Saving...' : 'Save Leads'}
         </button>
       </div>
+
+      <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white/75 p-2.5">
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold text-emerald-950">Auto-send Hot emails</span>
+          <span className="block text-xs leading-5 text-emerald-700">
+            Off by default. When enabled, Hot leads with emails are mailed during save.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={Boolean(autoSendHotEmails)}
+          onChange={(event) => onAutoSendHotEmailsChange?.(event.target.checked)}
+          className="h-5 w-5 shrink-0 accent-emerald-600"
+        />
+      </label>
+
+      <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/85 p-2.5">
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold text-amber-950">Test auto-send</span>
+          <span className="block text-xs leading-5 text-amber-800">
+            Sends Hot lead test copies to adityavbs22@gmail.com and aa5179@srmist.edu.in instead of real lead emails.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={Boolean(autoSendHotEmailTestMode)}
+          onChange={(event) => onAutoSendHotEmailTestModeChange?.(event.target.checked)}
+          className="h-5 w-5 shrink-0 accent-amber-600"
+        />
+      </label>
 
       {result ? (
         <p className={`mt-2 text-xs leading-5 ${result.error ? 'text-rose-700' : 'text-emerald-800'}`}>
@@ -127,6 +174,10 @@ export function NearbyLeadsPanel({
   canSaveLeads,
   onSaveLeads,
   saveState,
+  autoSendHotEmails,
+  onAutoSendHotEmailsChange,
+  autoSendHotEmailTestMode,
+  onAutoSendHotEmailTestModeChange,
 }) {
   const topLeadCount = leads.length
 
@@ -141,7 +192,10 @@ export function NearbyLeadsPanel({
       <div className="mb-3 grid grid-cols-3 gap-2">
         <MetricTile label="Radius" value={`${formatNumber(radiusMeters)} m`} />
         <MetricTile label="Buildings" value={loading ? '-' : formatNumber(topLeadCount)} />
-        <MetricTile label="Best Score" value={loading || !leads[0] ? '-' : formatNumber(leads[0].leadScore)} />
+        <MetricTile
+          label={scanMeta?.cacheHit ? 'Loaded From' : 'Best Score'}
+          value={scanMeta?.cacheHit ? 'Cache' : loading || !leads[0] ? '-' : formatNumber(leads[0].leadScore)}
+        />
       </div>
 
       <SaveLeadsAction
@@ -150,6 +204,10 @@ export function NearbyLeadsPanel({
         saving={saveState?.saving}
         result={saveState?.result}
         onSave={onSaveLeads}
+        autoSendHotEmails={autoSendHotEmails}
+        onAutoSendHotEmailsChange={onAutoSendHotEmailsChange}
+        autoSendHotEmailTestMode={autoSendHotEmailTestMode}
+        onAutoSendHotEmailTestModeChange={onAutoSendHotEmailTestModeChange}
       />
 
       {error ? (
@@ -232,6 +290,10 @@ export function StateLeadsPanel({
   canSaveLeads,
   onSaveLeads,
   saveState,
+  autoSendHotEmails,
+  onAutoSendHotEmailsChange,
+  autoSendHotEmailTestMode,
+  onAutoSendHotEmailTestModeChange,
 }) {
   const rankedLeads = [...leads].sort((left, right) => right.leadScore - left.leadScore)
   const bestLead = rankedLeads[0] ?? null
@@ -247,7 +309,10 @@ export function StateLeadsPanel({
       <div className="mb-3 grid grid-cols-3 gap-2">
         <MetricTile label="State" value={stateCode || '-'} />
         <MetricTile label="Places Checked" value={loading ? '-' : formatNumber(scanMeta?.placeCount ?? 0)} />
-        <MetricTile label="Solar Leads" value={loading ? '-' : formatNumber(rankedLeads.length)} />
+        <MetricTile
+          label={scanMeta?.cacheHit ? 'Loaded From' : 'Solar Leads'}
+          value={scanMeta?.cacheHit ? 'Cache' : loading ? '-' : formatNumber(rankedLeads.length)}
+        />
       </div>
 
       <SaveLeadsAction
@@ -256,6 +321,10 @@ export function StateLeadsPanel({
         saving={saveState?.saving}
         result={saveState?.result}
         onSave={onSaveLeads}
+        autoSendHotEmails={autoSendHotEmails}
+        onAutoSendHotEmailsChange={onAutoSendHotEmailsChange}
+        autoSendHotEmailTestMode={autoSendHotEmailTestMode}
+        onAutoSendHotEmailTestModeChange={onAutoSendHotEmailTestModeChange}
       />
 
       <div className="mb-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-800">

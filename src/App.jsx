@@ -77,6 +77,8 @@ function App() {
     nearby: { saving: false, result: null },
     state: { saving: false, result: null },
   })
+  const [autoSendHotEmails, setAutoSendHotEmails] = useState(false)
+  const [autoSendHotEmailTestMode, setAutoSendHotEmailTestMode] = useState(false)
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'solar-dashboard-map',
@@ -257,6 +259,7 @@ function App() {
         sampleCount: payload.sampleCount ?? 0,
         discoveredCount: payload.discoveredCount ?? rankedLeads.length,
         errorCount: payload.errors?.length ?? 0,
+        cacheHit: Boolean(payload.cacheHit),
       })
 
       if (rankedLeads[0]) {
@@ -301,6 +304,7 @@ function App() {
         placeCount: payload.placeCount ?? 0,
         discoveredCount: payload.discoveredCount ?? rankedLeads.length,
         errorCount: payload.errors?.length ?? 0,
+        cacheHit: Boolean(payload.cacheHit),
       })
 
       if (rankedLeads[0]) {
@@ -333,6 +337,8 @@ function App() {
         leads: leadsToSave,
         currentUser,
         source,
+        autoSendHotEmails,
+        autoSendHotEmailTestMode,
       })
 
       setLeadSaveState((current) => ({
@@ -350,7 +356,7 @@ function App() {
         },
       }))
     }
-  }, [currentUser])
+  }, [autoSendHotEmailTestMode, autoSendHotEmails, currentUser])
 
   const selectMapMarker = useCallback((leadId) => {
     const stateLead = stateLeads.find((lead) => lead.id === leadId)
@@ -631,6 +637,10 @@ function App() {
             scanMeta={nearbyScanMeta}
             canSaveLeads={canSaveLeads}
             saveState={leadSaveState.nearby}
+            autoSendHotEmails={autoSendHotEmails}
+            onAutoSendHotEmailsChange={setAutoSendHotEmails}
+            autoSendHotEmailTestMode={autoSendHotEmailTestMode}
+            onAutoSendHotEmailTestModeChange={setAutoSendHotEmailTestMode}
             onSaveLeads={() => saveScannedLeads({
               kind: 'nearby',
               leadsToSave: nearbyLeads,
@@ -649,6 +659,10 @@ function App() {
             scanMeta={stateScanMeta}
             canSaveLeads={canSaveLeads}
             saveState={leadSaveState.state}
+            autoSendHotEmails={autoSendHotEmails}
+            onAutoSendHotEmailsChange={setAutoSendHotEmails}
+            autoSendHotEmailTestMode={autoSendHotEmailTestMode}
+            onAutoSendHotEmailTestModeChange={setAutoSendHotEmailTestMode}
             onSaveLeads={() => saveScannedLeads({
               kind: 'state',
               leadsToSave: stateLeadCandidates,
