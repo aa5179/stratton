@@ -148,6 +148,45 @@ npm run build    # production frontend build
 npm run lint     # ESLint
 ```
 
+## Deploying on Vercel
+
+The Vercel deployment uses the Vite frontend from `dist` and the Express backend through `api/[...path].js`.
+
+After deploying, check:
+
+```text
+https://your-vercel-domain.vercel.app/api/health
+```
+
+It should return:
+
+```json
+{ "ok": true }
+```
+
+If `/api/calls/test` returns `404`, the latest code with `api/[...path].js` has not been deployed yet.
+
+Set production environment variables in Vercel Project Settings, not only in local `.env`. For the temporary `Test Call` button, set the Twilio values:
+
+```bash
+TEST_CALL_PHONE=+919140819309
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_FROM_NUMBER=+15551234567
+```
+
+For normal lead calls through Plivo, set:
+
+```bash
+CALL_PROVIDER=plivo
+APP_PUBLIC_URL=https://your-vercel-domain.vercel.app
+PLIVO_AUTH_ID=your_plivo_auth_id
+PLIVO_AUTH_TOKEN=your_plivo_auth_token
+PLIVO_FROM_NUMBER=+15551234567
+```
+
+Redeploy after changing Vercel environment variables.
+
 ## Lead Workflow
 
 1. Sign in as an admin.
