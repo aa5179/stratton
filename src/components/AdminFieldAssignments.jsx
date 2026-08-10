@@ -109,7 +109,7 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
 
   const assignTicket = async (ticket) => {
     if (!selectedEmployeeId) {
-      setError('Select a ground employee first.')
+      setError('Select an agent first.')
       return
     }
 
@@ -269,7 +269,7 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
         <div>
           <p className="admin-assignment-eyebrow">Field assignments</p>
           <h2>No-Email Leads</h2>
-          <p>Find contacts with business/domain or parcel-owner enrichment, then assign leads with no email or phone to field employees.</p>
+          <p>Find contacts with business/domain or parcel-owner enrichment, then assign leads with no email or phone to agents.</p>
         </div>
         <div className="admin-assignment-header-actions">
           <button type="button" onClick={sendMailsToAll} disabled={sendingEmails || !senderEmail}>
@@ -286,7 +286,7 @@ function AdminFieldAssignments({ currentUser, senderEmail }) {
 
       <div className="admin-assignment-controls">
         <label>
-          <span>Ground employee</span>
+          <span>Agent</span>
           <select
             value={selectedEmployeeId}
             onChange={(event) => setSelectedEmployeeId(event.target.value)}

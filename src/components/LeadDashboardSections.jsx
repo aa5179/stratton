@@ -142,7 +142,7 @@ function SaveLeadsAction({
 
 export function KPIGrid({ metrics, loading }) {
   return (
-    <div className={cardShell}>
+    <div className={`${cardShell} kpi-grid-card`}>
       <SectionHeading
         eyebrow="System output"
         title="Selected System"

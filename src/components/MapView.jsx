@@ -7,12 +7,16 @@ const containerStyle = {
 }
 
 const mapOptions = {
-  disableDefaultUI: false,
+  disableDefaultUI: true,
   clickableIcons: true,
   streetViewControl: false,
   mapTypeControl: false,
   fullscreenControl: false,
-  zoomControl: true,
+  zoomControl: false,
+  scaleControl: false,
+  rotateControl: false,
+  cameraControl: false,
+  keyboardShortcuts: false,
   gestureHandling: 'greedy',
   mapTypeId: 'satellite',
   tilt: 0,
@@ -38,6 +42,16 @@ function getZoomForRadius(radiusMeters, hasSelection) {
   if (radiusMeters <= 45) return 20
   if (radiusMeters <= 75) return 19
   return 18
+}
+
+function getCollapsedPreviewZoom(targetZoom, hasSelection) {
+  if (!hasSelection) return 13
+  return Math.max(17, Math.min(targetZoom, 20))
+}
+
+function isMobileMapLayout() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(max-width: 760px)').matches
 }
 
 function getDistanceMiles(from, to) {
@@ -227,8 +241,12 @@ function MapView({
   solarPotential = {},
   roofSegments = [],
   thermalViewEnabled = false,
+  mobileExpanded = false,
+  onMobileExpand,
+  onMobileCollapse,
 }) {
   const [mapZoom, setMapZoom] = useState(getZoomForRadius(radiusMeters, Boolean(selectedLocation)))
+  const [isLocating, setIsLocating] = useState(false)
   const [initialMapCamera] = useState(() => ({
     center,
     zoom: getZoomForRadius(radiusMeters, Boolean(selectedLocation)),
@@ -237,6 +255,7 @@ function MapView({
   const cameraAnimationRef = useRef({ frame: null, timer: null })
   const lastCameraTargetRef = useRef(null)
   const targetZoom = getZoomForRadius(radiusMeters, Boolean(selectedLocation))
+  const collapsedPreviewZoom = getCollapsedPreviewZoom(targetZoom, Boolean(selectedLocation))
   const realPanelLayout = useMemo(() => {
     return solarPanels
       .map((panel, index) => ({ ...panel, id: `solar-panel-${index}` }))
@@ -366,6 +385,91 @@ function MapView({
     }
   }, [center, targetZoom])
 
+  useEffect(() => {
+    const map = mapRef.current
+
+    if (!map || !center || !window.google?.maps?.event) {
+      return undefined
+    }
+
+    const resizeTimer = window.setTimeout(() => {
+      const shouldShowPreview = isMobileMapLayout() && !mobileExpanded
+
+      window.google.maps.event.trigger(map, 'resize')
+      map.setMapTypeId(shouldShowPreview ? 'hybrid' : 'satellite')
+      map.setCenter(center)
+      map.setZoom(shouldShowPreview ? collapsedPreviewZoom : targetZoom)
+    }, 390)
+
+    return () => {
+      window.clearTimeout(resizeTimer)
+    }
+  }, [center, collapsedPreviewZoom, mobileExpanded, targetZoom])
+
+  const panToLocation = (location, zoom = targetZoom) => {
+    const map = mapRef.current
+
+    if (!map || !location) {
+      return
+    }
+
+    const animationState = cameraAnimationRef.current
+
+    if (animationState.frame) {
+      window.cancelAnimationFrame(animationState.frame)
+    }
+
+    if (animationState.timer) {
+      window.clearTimeout(animationState.timer)
+    }
+
+    animationState.frame = null
+    animationState.timer = null
+    lastCameraTargetRef.current = {
+      lat: location.lat,
+      lng: location.lng,
+      zoom,
+    }
+
+    map.panTo(location)
+    map.setZoom(zoom)
+  }
+
+  const handleRecenter = () => {
+    const fallbackRecenter = () => {
+      panToLocation(center, targetZoom)
+    }
+
+    if (!navigator.geolocation) {
+      fallbackRecenter()
+      return
+    }
+
+    setIsLocating(true)
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }
+
+        panToLocation(userLocation, Math.max(17, targetZoom))
+        onMapClick?.(userLocation)
+        setIsLocating(false)
+      },
+      () => {
+        fallbackRecenter()
+        setIsLocating(false)
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 60000,
+        timeout: 9000,
+      },
+    )
+  }
+
   if (loadError) {
     return (
       <div className="flex h-full items-center justify-center bg-slate-950 p-6 text-sm text-rose-100">
@@ -383,7 +487,9 @@ function MapView({
   }
 
   return (
-    <div className={`relative h-full overflow-hidden bg-slate-950 ${thermalViewEnabled ? 'map-thermal-view' : ''}`}>
+    <div className={`map-view-root relative h-full overflow-hidden bg-slate-950 ${
+      thermalViewEnabled ? 'map-thermal-view' : ''
+    } ${mobileExpanded ? 'map-view-mobile-expanded' : 'map-view-mobile-collapsed'}`}>
       {thermalViewEnabled ? (
         <>
           <div className="thermal-map-overlay" />
@@ -404,6 +510,16 @@ function MapView({
         options={mapOptions}
         onLoad={(map) => {
           mapRef.current = map
+          const shouldShowPreview = isMobileMapLayout() && !mobileExpanded
+
+          map.setMapTypeId(shouldShowPreview ? 'hybrid' : 'satellite')
+          map.setZoom(shouldShowPreview ? collapsedPreviewZoom : targetZoom)
+
+          window.setTimeout(() => {
+            window.google?.maps?.event?.trigger(map, 'resize')
+            map.setCenter(center)
+          }, 120)
+
           setMapZoom(map.getZoom() ?? targetZoom)
         }}
         onIdle={() => {
@@ -478,6 +594,55 @@ function MapView({
           )
         })}
       </GoogleMap>
+      <button
+        type="button"
+        className="map-mobile-expand-button"
+        onClick={onMobileExpand}
+        aria-label="Expand map"
+        title="Expand map"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 3H3v5" />
+          <path d="M16 3h5v5" />
+          <path d="M8 21H3v-5" />
+          <path d="M16 21h5v-5" />
+          <path d="M3 3l6 6" />
+          <path d="M21 3l-6 6" />
+          <path d="M3 21l6-6" />
+          <path d="M21 21l-6-6" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="map-mobile-collapse-button"
+        onClick={onMobileCollapse}
+        aria-label="Shrink map"
+        title="Shrink map"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 3v6H3" />
+          <path d="M15 3v6h6" />
+          <path d="M9 21v-6H3" />
+          <path d="M15 21v-6h6" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className={`map-recenter-button ${isLocating ? 'map-recenter-button-loading' : ''}`}
+        onClick={handleRecenter}
+        disabled={isLocating}
+        aria-label={isLocating ? 'Finding your location' : 'Recenter map to your location'}
+        title={isLocating ? 'Finding your location' : 'Recenter map to your location'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v3" />
+          <path d="M12 18v3" />
+          <path d="M3 12h3" />
+          <path d="M18 12h3" />
+          <circle cx="12" cy="12" r="5.5" />
+          <circle cx="12" cy="12" r="1.4" />
+        </svg>
+      </button>
     </div>
   )
 }

@@ -65,13 +65,13 @@ function LoginScreen({ onLogin, authError, theme, onToggleTheme }) {
         <div>
           <h1 className="login-title">Sign in to continue</h1>
           <p className="login-copy">
-            Admins manage leads and campaigns. Ground employees see assigned client visits and tickets.
+            Admins manage leads and campaigns. Agents see assigned client visits and tickets.
           </p>
         </div>
 
         <div className="login-role-switch" aria-label="Available account roles">
           <span>Admin</span>
-          <span>Ground Employee</span>
+          <span>Agent</span>
         </div>
 
         <form className="login-form" onSubmit={submitLogin}>

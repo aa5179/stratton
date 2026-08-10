@@ -414,7 +414,7 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
             <img src="/LOGO.jpeg" alt="Stratton logo" />
             <div>
               <p>STRATTON</p>
-              <span>Ground employee dashboard</span>
+              <span>Agent dashboard</span>
             </div>
           </div>
           <h1>Assigned Client Visits</h1>
@@ -486,7 +486,7 @@ function EmployeeDashboard({ currentUser, onSignOut, theme, onToggleTheme }) {
           {!ticketAreaLoading && !tickets.length ? (
             <div className="employee-empty-state">
               <p>No assigned tickets yet.</p>
-              <span>Ask an admin to assign no-email leads to this ground employee account.</span>
+              <span>Ask an admin to assign no-email leads to this agent account.</span>
             </div>
           ) : null}
 

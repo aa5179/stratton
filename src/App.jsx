@@ -94,6 +94,7 @@ function App() {
   const [autoSendHotEmails, setAutoSendHotEmails] = useState(false)
   const [autoSendHotEmailTestMode, setAutoSendHotEmailTestMode] = useState(false)
   const [theme, setTheme] = useState(getInitialTheme)
+  const [mobileMapExpanded, setMobileMapExpanded] = useState(false)
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'solar-dashboard-map',
@@ -207,6 +208,7 @@ function App() {
   }, [selectedLocation])
 
   const selectLocation = useCallback(({ lat, lng, address, city, state, zip, country }) => {
+    setMobileMapExpanded(true)
     setSolarData(null)
     setSolarError('')
     setRequestedPanelCount(null)
@@ -543,7 +545,12 @@ function App() {
   }
 
   return (
-    <div className="map-workspace page-transition page-transition-map" data-theme={theme}>
+    <div
+      className={`map-workspace page-transition page-transition-map ${
+        mobileMapExpanded ? 'map-workspace-mobile-expanded' : 'map-workspace-mobile-collapsed'
+      }`}
+      data-theme={theme}
+    >
       <MapView
         isLoaded={isLoaded}
         loadError={loadError}
@@ -561,6 +568,9 @@ function App() {
         solarPotential={solarData?.solarPotential ?? {}}
         roofSegments={solarData?.roofAnalysis?.roofSegments ?? []}
         thermalViewEnabled={thermalViewEnabled}
+        mobileExpanded={mobileMapExpanded}
+        onMobileExpand={() => setMobileMapExpanded(true)}
+        onMobileCollapse={() => setMobileMapExpanded(false)}
       />
 
       <aside className="workspace-panel workspace-panel-left">

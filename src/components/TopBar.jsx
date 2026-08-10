@@ -57,7 +57,7 @@ function TopBar({
 
   return (
     <div className="topbar-card stratton-card space-y-4 rounded-lg p-4">
-      <div>
+      <div className="topbar-identity-section">
         <div className="flex items-start justify-between gap-3">
           <div className="app-brand app-brand-map">
             <img src="/LOGO.jpeg" alt="Stratton logo" />
@@ -104,7 +104,7 @@ function TopBar({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="topbar-control-section space-y-3">
         <div className="map-search-shell">
           <span className="map-search-label">
             Search
