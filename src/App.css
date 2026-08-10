@@ -5518,19 +5518,7 @@ body::-webkit-scrollbar,
   }
 
   .map-workspace-mobile-collapsed .map-mobile-expand-button svg {
-    position: absolute;
-    right: 0.48rem;
-    bottom: 0.48rem;
-    width: 1rem;
-    height: 1rem;
-    padding: 0.34rem;
-    border-radius: 999px;
-    background: rgba(255, 250, 244, 0.82);
-    color: #332216;
-    box-sizing: content-box;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    display: none;
   }
 
   .map-workspace-mobile-collapsed .map-recenter-button,
